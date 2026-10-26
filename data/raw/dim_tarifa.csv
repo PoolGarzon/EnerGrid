@@ -1,0 +1,5 @@
+tariff_id,tariff_name,rate_per_kwh
+1,Residencial,0.095
+2,Comercial,0.125
+3,Industrial,0.105
+4,Social,0.065

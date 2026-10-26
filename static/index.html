@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EnerGrid BI · Control Center</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --line: #e6eaf1;
+      --line2: #f0f3f8;
+      --tx: #0f172a;
+      --tx2: #334155;
+      --mut: #64748b;
+      --bl: #2563eb;
+      --bl-s: #eaf1ff;
+      --tq: #0d9488;
+      --tq-s: #e6f7f5;
+      --or: #ea580c;
+      --or-s: #fff1e6;
+      --rd: #dc2626;
+      --rd-s: #fdecec;
+      --am: #d97706;
+      --am-s: #fef6e4;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 14px rgba(15, 23, 42, .04)
+    }
+
+    * { box-sizing: border-box; margin: 0 }
+
+    body { font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--tx); min-height: 100vh; -webkit-font-smoothing: antialiased }
+
+    /* ---------- Header / navegación ---------- */
+    header { position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, .94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line) }
+    .hin { max-width: 1520px; margin: 0 auto; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; min-height: 64px }
+    .logo { display: flex; align-items: center; gap: 11px }
+    .logo .mk { width: 34px; height: 34px; border-radius: 10px; background: var(--bl); display: grid; place-items: center; box-shadow: 0 4px 10px rgba(37, 99, 235, .28) }
+    .logo b { font-size: 17px; font-weight: 800; letter-spacing: -.02em; display: block; line-height: 1.1 }
+    .logo small { font-size: 11px; color: var(--mut); font-weight: 500 }
+    nav { display: flex; gap: 4px; align-self: stretch }
+    nav button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--mut); font: 600 13.5px Inter; padding: 0 16px; cursor: pointer; transition: .15s }
+    nav button:hover { color: var(--tx) }
+    nav button.on { color: var(--bl); border-bottom-color: var(--bl) }
+    .meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11.5px; color: var(--mut) }
+    .live { display: flex; align-items: center; gap: 6px; color: var(--tq); font-weight: 600 }
+    .live i { width: 7px; height: 7px; border-radius: 50%; background: var(--tq) }
+    /* Indicador discreto «Datos actualizados al» (estado de la actualización de datos; el detalle va en el tooltip) */
+    .dstat { display: none; align-items: center; gap: 6px; font-size: 11px; color: var(--mut); cursor: help }
+    .dstat.on { display: flex }
+    .dstat i { width: 7px; height: 7px; border-radius: 50%; background: var(--mut); flex: none }
+    .dstat.ok i { background: var(--tq) }
+    .dstat.atrasado i, .dstat.sin_datos i { background: var(--am) }
+    .dstat.error i { background: var(--rd) }
+    .dstat.en_curso i { background: var(--bl) }
+    .dstat.atrasado b, .dstat.error b { color: var(--am) }
+    .dstat.error b { color: var(--rd) }
+    .dstat b { font-weight: 600 }
+    /* Panel y botón de actualización de resúmenes precalculados */
+    .refresh-panel { display: flex; align-items: center; gap: 12px; margin-left: auto; padding: 6px 14px; border-radius: 10px; background: #f8fafc; border: 1px solid var(--line); flex-wrap: wrap }
+    .refresh-info { display: flex; flex-direction: column; gap: 2px; min-width: 175px }
+    .refresh-status-line { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--tx2) }
+    .refresh-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mut); flex: none; display: inline-block }
+    .refresh-dot.ok { background: var(--tq) }
+    .refresh-dot.atrasado, .refresh-dot.sin_datos { background: var(--am) }
+    .refresh-dot.error { background: var(--rd) }
+    .refresh-dot.en_curso { background: #10b981; animation: pulse 1.4s infinite ease-in-out }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(1.2); } }
+    .refresh-caption { font-weight: 500; color: var(--mut); font-size: 11px }
+    .refresh-ts { font-weight: 700; color: var(--tx); font-size: 12px; letter-spacing: -.01em }
+    .refresh-meta-line { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--mut) }
+    .refresh-tag { display: inline-block; font-weight: 600; padding: 1px 6px; border-radius: 4px; background: #e2e8f0; color: var(--tx2) }
+    .refresh-dur { color: var(--mut) }
+
+    .btn-refresh-accent { display: inline-flex; align-items: center; gap: 6px; font: 650 12px Inter, sans-serif; padding: 8px 14px; border-radius: 9px; border: 1px solid #10b981; background: #ecfdf5; color: #065f46; cursor: pointer; transition: all .15s ease; box-shadow: 0 1px 2px rgba(16, 185, 129, .15); min-height: 38px; white-space: nowrap }
+    .btn-refresh-accent:hover:not(:disabled) { background: #10b981; color: #ffffff; border-color: #059669; box-shadow: 0 2px 6px rgba(16, 185, 129, .3) }
+    .btn-refresh-accent:disabled { opacity: .6; cursor: not-allowed; background: #f1f5f9; border-color: #cbd5e1; color: var(--mut); box-shadow: none }
+    .btn-refresh-accent svg { flex: none }
+    .btn-refresh-accent.spinning svg { animation: spin 1s linear infinite }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    main { max-width: 1520px; margin: 0 auto; padding: 22px 28px 40px }
+
+    /* ---------- Filtros ---------- */
+    .filters { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; margin-bottom: 18px; box-shadow: var(--shadow) }
+    .fh { display: flex; align-items: center; gap: 10px; margin-bottom: 9px }
+    .fh b { font-size: 11px; color: var(--mut); text-transform: uppercase; letter-spacing: .08em }
+    .fh span { font-size: 12px; color: var(--tx2); font-weight: 500 }
+    .fh button { margin-left: auto; font: 600 12px Inter; color: var(--bl); background: none; border: 0; cursor: pointer }
+    #chips { display: flex; flex-wrap: wrap; gap: 6px }
+    .chip { font: 500 12px Inter; padding: 5px 11px; border-radius: 99px; border: 1px solid var(--line); background: #fff; color: var(--mut); cursor: pointer; transition: .12s; user-select: none }
+    .chip:hover { border-color: #c7d2e5; color: var(--tx2) }
+    .chip.on { background: var(--bl-s); border-color: #bcd2fb; color: var(--bl); font-weight: 600 }
+
+
+    /* Filtro temporal integrado al diseño de EnerGrid */
+    .temporal { margin-top: -5px; padding: 17px 19px; }
+    .filter-head { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:13px; }
+    .filter-eyebrow { font-size:10px; font-weight:800; letter-spacing:.1em; color:var(--bl); margin-bottom:4px; }
+    .filter-title {font-size:14px;font-weight:750;color:var(--tx)}
+    .filter-range { border:1px solid #bfdbfe;background:var(--bl-s);color:#1d4ed8;border-radius:999px;font-size:11px;font-weight:650;padding:7px 12px; }
+    .date-controls { display:flex; align-items:end; gap:12px; flex-wrap:wrap }
+    .date-field {display:flex;flex-direction:column;gap:5px;min-width:180px}
+    .date-field label {font-size:11px;font-weight:650;color:var(--mut)}
+    .date-field select {appearance:auto;background:#fff;border:1px solid #ced7e6;border-radius:9px;font:600 13px Inter, sans-serif;color:var(--tx);padding:10px 12px;min-height:40px;min-width:175px;cursor:pointer}
+    .date-field select:focus-visible,.reset-btn:focus-visible {outline:3px solid #bfdbfe;outline-offset:2px}
+    .date-arrow{font-size:20px;color:#94a3b8;padding-bottom:9px}
+    .reset-btn {border:1px solid #bed0ef;background:var(--bl-s);color:#1d4ed8;border-radius:9px;padding:10px 14px;font:650 12px Inter,sans-serif;cursor:pointer;min-height:40px;margin-left:auto}
+    .reset-btn:hover{background:#dbeafe}
+    .date-footnote {font-size:11px;color:var(--mut);margin-top:10px;line-height:1.5}
+    .date-error {margin-top:9px;font-size:12px;color:var(--rd);font-weight:600}
+    .annual-note {display:inline-block;margin:6px 0 8px;padding:4px 9px;border-radius:7px;background:#fff7ed;color:#9a3412;font-size:10px;font-weight:700}
+    /* Filtros por dimensión (Región / Circuito / Tarifa / Tipo de cliente) */
+    .dims .dim-controls { display:flex; align-items:end; gap:12px; flex-wrap:wrap }
+    .dims .date-field { min-width:170px; flex:1 1 170px; max-width:280px }
+    .dims .date-field select { min-width:0; width:100% }
+    .dims .fh button { font:650 12px Inter,sans-serif; border:1px solid #bed0ef; background:var(--bl-s); color:#1d4ed8; border-radius:9px; padding:8px 12px; margin-left:auto; cursor:pointer }
+    .dims .fh button:hover { background:#dbeafe }
+    .nanote { display:none; margin:0 0 12px; padding:8px 12px; border-left:3px solid #fdba74; background:#fff9f1; color:#7c4a1d; border-radius:8px; font-size:11.5px; line-height:1.5 }
+    .nanote.on { display:block }
+    .nanote p { margin:2px 0 }
+    @media(max-width:680px){.dims .date-field{max-width:none}}
+    @media(max-width:680px){.date-field{flex:1;min-width:125px}.date-field select{min-width:0;width:100%}.reset-btn{margin-left:0;width:100%}.date-arrow{padding-bottom:10px}.temporal{padding:14px}.refresh-panel{margin-left:0;width:100%;justify-content:space-between}}
+
+    tr[data-zone], tr[data-tr], tr[data-cl] { cursor: pointer }
+    tr[data-tr]:focus-visible td, tr[data-cl]:focus-visible td { background: #eaf1ff }
+    /* Modal de detalle (transformador -> clientes -> cliente): no toca los filtros globales */
+    .dm { position: fixed; inset: 0; z-index: 60; display: none; background: rgba(15, 23, 42, .45); padding: 4vh 16px; overflow: auto }
+    .dm.on { display: block }
+    .dm-box { max-width: 1060px; margin: 0 auto; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 20px 60px rgba(15, 23, 42, .3) }
+    .dm-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; gap: 12px; padding: 16px 20px; background: var(--card); border-bottom: 1px solid var(--line); border-radius: 16px 16px 0 0 }
+    .dm-head h2 { font-size: 17px; font-weight: 800; letter-spacing: -.01em }
+    .dm-head .sub { font-size: 12px; color: var(--mut); margin-top: 2px }
+    .dm-x { margin-left: auto; flex: none; width: 34px; height: 34px; border: 1px solid var(--line); background: #fff; border-radius: 9px; font-size: 16px; cursor: pointer; color: var(--tx2) }
+    .dm-x:hover { background: var(--line2) }
+    .dm-x:focus-visible { outline: 3px solid #bfdbfe; outline-offset: 2px }
+    .dm-body { padding: 16px 20px 22px }
+    .dm-body h4 { font-size: 13px; font-weight: 700; margin: 20px 0 8px }
+    .dm-body .kpis { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) }
+    .dm-body .kv { font-size: 22px }
+    .dm-pager { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--mut) }
+    .dm-pager button { border: 1px solid #bed0ef; background: var(--bl-s); color: #1d4ed8; border-radius: 8px; padding: 6px 12px; font: 600 12px Inter, sans-serif; cursor: pointer }
+    .dm-pager button:disabled { opacity: .45; cursor: default }
+    .dm-note { font-size: 11.5px; color: var(--mut); line-height: 1.5; margin-top: 8px }
+    .map-action.ghost { background: #fff; color: var(--bl); border: 1px solid #bed0ef; margin-left: 6px }
+
+    /* Mapa GIS: 15 centroides agregados, nunca 50.000 puntos en el navegador */
+    .map-layout { display:grid;grid-template-columns:minmax(0, 2fr) minmax(260px, 1fr);gap:16px }
+    .map-surface {height:430px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#edf2f7;z-index:0}
+    .map-panel {padding:16px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;min-height:180px}
+    .map-panel h4 {font-size:14px;margin-bottom:10px}.map-panel p {font-size:12px;line-height:1.6;color:var(--tx2);margin:6px 0}
+    .map-key {display:flex;flex-wrap:wrap;gap:15px;margin:8px 0;font-size:11px;color:var(--mut)}
+    .map-dot {display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+    .map-action {padding:9px 13px;background:var(--bl);color:white;border:0;border-radius:8px;cursor:pointer;margin-top:10px;font:600 12px Inter}
+    .map-footnote {color:var(--mut);font-size:11px;line-height:1.5;margin-top:9px}
+    /* Tooltip del mapa (criticidad, pérdida, AMI) y aviso de datos en actualización */
+    .leaflet-tooltip.map-tt {padding:8px 11px;border-radius:10px;border:1px solid #e2e8f0;box-shadow:0 8px 24px rgba(15,23,42,.14)}
+    .map-tip {font:12px/1.55 Inter,system-ui,sans-serif;color:var(--tx2);min-width:190px}
+    .map-tip b {color:var(--tx)} .map-tip .mt {font-size:11px;color:var(--mut)} .map-tip .st {margin-top:4px;color:var(--am);font-weight:600;white-space:normal}
+    .map-note {font-size:11.5px;color:var(--am);font-weight:600}
+    .info {display:inline-block;margin-left:5px;color:var(--mut);cursor:help;font-style:normal;text-transform:none;letter-spacing:0}
+    @media(max-width:840px){.map-layout{grid-template-columns:1fr}.map-surface{height:350px}}
+
+    /* ---------- Insights ---------- */
+    .insights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px }
+    .ins { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--c, var(--bl)); border-radius: 12px; padding: 12px 15px; font-size: 13px; line-height: 1.5; color: var(--tx2); box-shadow: var(--shadow) }
+    .ins b { color: var(--tx) }
+
+    /* ---------- Secciones ---------- */
+    .sec { font-size: 12px; font-weight: 700; color: var(--mut); text-transform: uppercase; letter-spacing: .09em; margin: 22px 0 10px; display: flex; align-items: center; gap: 10px }
+    .sec::after { content: ""; flex: 1; height: 1px; background: var(--line) }
+    .sec:first-child { margin-top: 0 }
+
+    /* ---------- KPI ---------- */
+    .kgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px }
+    .kg { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px 16px; box-shadow: var(--shadow) }
+    .kgh { display: flex; align-items: center; gap: 8px; margin-bottom: 11px }
+    .kgh i { width: 9px; height: 9px; border-radius: 3px; background: var(--g) }
+    .kgh b { font-size: 13px; font-weight: 700 }
+    .kgh span { font-size: 11.5px; color: var(--mut); margin-left: auto }
+    .kgi { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+    .kpis { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 4px }
+    .kpi { background: #fbfcfe; border: 1px solid var(--line2); border-top: 3px solid var(--c, var(--bl)); border-radius: 12px; padding: 12px 14px }
+    .kpis .kpi { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--c, var(--bl)); border-radius: 14px; padding: 15px 17px; box-shadow: var(--shadow) }
+    .kl { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 11px; color: var(--mut); text-transform: uppercase; letter-spacing: .06em; font-weight: 600 }
+    .kv { font-size: 28px; font-weight: 800; letter-spacing: -.025em; margin: 5px 0 1px; color: var(--tx) }
+    .kd { font-size: 12px; color: var(--mut); line-height: 1.4 }
+    .kt { font-size: 11.5px; color: var(--mut); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line) }
+    .fav { color: var(--tq); font-weight: 700 }
+    .adv { color: var(--or); font-weight: 700 }
+    .pill { font-style: normal; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: none; letter-spacing: 0; white-space: nowrap }
+    .pill.ok, .tag.ok { background: var(--tq-s); color: var(--tq) }
+    .pill.bad, .tag.bad, .tag.alta { background: var(--rd-s); color: var(--rd) }
+    .pill.warn, .tag.media { background: var(--am-s); color: var(--am) }
+
+    /* ---------- Tarjetas y gráficos ---------- */
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); margin-top: 16px }
+    .sec + .grid { margin-top: 0 }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px 14px; box-shadow: var(--shadow); min-width: 0 }
+    .card h3 { font-size: 14.5px; font-weight: 700; letter-spacing: -.01em }
+    .card .sub { font-size: 12px; color: var(--mut); margin: 2px 0 10px; line-height: 1.4 }
+    .ch { width: 100%; height: 320px }
+    .ch.sm { height: 235px }
+    .ch.lg { height: 360px }
+    .s4 { grid-column: span 4 } .s5 { grid-column: span 5 } .s6 { grid-column: span 6 }
+    .s7 { grid-column: span 7 } .s8 { grid-column: span 8 } .s12 { grid-column: span 12 }
+    @media(max-width:1100px) {
+      .s4, .s5, .s6, .s7, .s8 { grid-column: span 12 }
+      .kgs, .insights { grid-template-columns: 1fr }
+    }
+
+    /* ---------- Tablas ---------- */
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px }
+    th { text-align: left; color: var(--mut); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; padding: 8px 9px; border-bottom: 1px solid var(--line); background: #fafbfd; position: sticky; top: 0 }
+    td { padding: 9px; border-bottom: 1px solid var(--line2); color: var(--tx2) }
+    td b { color: var(--tx) }
+    tr:hover td { background: #f8faff }
+    .r { text-align: right; font-variant-numeric: tabular-nums }
+    th.r { text-align: right }
+    .tag { padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap }
+    .tag.cause { background: var(--bl-s); color: var(--bl) }
+    .bar { display: inline-block; vertical-align: middle; width: 54px; height: 6px; border-radius: 4px; background: var(--line2); margin-left: 7px; overflow: hidden }
+    .bar i { display: block; height: 100%; background: var(--bar, var(--bl)); border-radius: 4px }
+    .scroll { max-height: 345px; overflow: auto }
+    .muted { color: var(--mut); font-size: 11.5px }
+
+    .view { display: none }
+    .view.on { display: block; animation: f .3s }
+    @keyframes f { from { opacity: 0; transform: translateY(6px) } }
+
+    #err { display: none; background: var(--rd-s); border: 1px solid #f5b5b5; color: #991b1b; padding: 14px; border-radius: 12px; margin-bottom: 16px; font-size: 13px }
+    .load { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(245, 247, 251, .8); z-index: 50; font-weight: 600; color: var(--bl); font-size: 14px }
+    .load div { background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); padding: 14px 22px; border-radius: 12px; display: flex; gap: 10px; align-items: center }
+    .load i { width: 16px; height: 16px; border: 3px solid var(--bl-s); border-top-color: var(--bl); border-radius: 50%; animation: sp .8s linear infinite }
+    @keyframes sp { to { transform: rotate(360deg) } }
+
+    footer { max-width: 1520px; margin: 0 auto; padding: 0 28px 34px; font-size: 11.5px; color: var(--mut); line-height: 1.7 }
+    footer b { color: var(--tx2) }
+  </style>
+</head>
+
+<body>
+  <div class="load" id="load"><div><i></i>Cargando datos…</div></div>
+  <header>
+    <div class="hin">
+      <div class="logo">
+        <div class="mk"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 4 14h6l-1 8 9-12h-6z" /></svg></div>
+        <div><b>EnerGrid BI</b><small>Control Center · Distribución eléctrica</small></div>
+      </div>
+      <nav id="nav">
+        <button data-v="exec" class="on">Executive</button>
+        <button data-v="loss">Losses &amp; Metering</button>
+        <button data-v="col">Collections</button>
+        <button data-v="rel">Service Reliability</button>
+      </nav>
+      <div class="meta">
+        <div class="live"><i></i>SQL Server · EnerGrid</div>
+        <div id="period">—</div>
+        <div id="dataStatus" class="dstat" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="err"></div>
+    <div class="filters">
+      <div class="fh"><b>Filtrar por zona</b><span id="fcount"></span><button id="fall" type="button">Quitar selección de zona</button></div>
+      <div id="chips"></div>
+    </div>
+
+    <div class="filters dims" aria-label="Filtros por dimensión">
+      <div class="fh"><b>Filtros por dimensión</b><span id="dimStatus"></span><button id="clearAll" type="button" title="Quita región, circuito, tarifa, tipo de cliente, zonas y mes">↺ Limpiar filtros</button></div>
+      <div class="dim-controls">
+        <div class="date-field"><label for="regionSel">Región</label><select id="regionSel" aria-label="Región"><option value="">Todas</option></select></div>
+        <div class="date-field"><label for="circuitSel">Circuito</label><select id="circuitSel" aria-label="Circuito"><option value="">Todos</option></select></div>
+        <div class="date-field"><label for="tariffSel">Tarifa</label><select id="tariffSel" aria-label="Tarifa"><option value="">Todas</option></select></div>
+        <div class="date-field"><label for="typeSel">Tipo de cliente</label><select id="typeSel" aria-label="Tipo de cliente"><option value="">Todos</option></select></div>
+      </div>
+      <div class="date-footnote" id="dimNotice" role="status"></div>
+    </div>
+
+    <div class="filters temporal" aria-label="Filtro temporal">
+      <div class="filter-head"><div><div class="filter-eyebrow">ANÁLISIS TEMPORAL</div><div class="filter-title">Selecciona un mes o todo el período</div></div>
+        <span class="filter-range" id="activeRange">Todo el período</span></div>
+      <div class="date-controls">
+        <div class="date-field"><label for="monthSel">Mes</label><select id="monthSel" aria-label="Mes de análisis"><option value="">Todo el período</option></select></div>
+        <button id="resetDates" class="reset-btn" type="button">↺ Todo el período</button>
+        <div class="refresh-panel" aria-label="Estado y actualización de resúmenes precalculados">
+          <div class="refresh-info">
+            <div class="refresh-status-line">
+              <i id="refreshDot" class="refresh-dot"></i>
+              <span class="refresh-caption">Resúmenes al:</span>
+              <b id="refreshTimestamp" class="refresh-ts">—</b>
+            </div>
+            <div class="refresh-meta-line">
+              <span id="refreshOrigin" class="refresh-tag"></span>
+              <span id="refreshDuration" class="refresh-dur"></span>
+            </div>
+          </div>
+          <button id="btnRefresh" type="button" class="btn-refresh-accent" title="Reconstruir resúmenes precalculados en segundo plano">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+            <span id="btnRefreshText">Actualizar resúmenes</span>
+          </button>
+        </div>
+      </div>
+      <div class="date-footnote" id="dateNotice" role="status"></div>
+    </div>
+
+    <!-- ================= EXECUTIVE ================= -->
+    <section class="view on" id="exec">
+      <div class="nanote" id="na_exec"></div>
+      <div class="insights" id="ins"></div>
+      <div class="kgs" id="k_exec"></div>
+
+      <div class="sec">Tendencias mensuales</div>
+      <div class="grid">
+        <div class="card s4"><h3>Pérdida de energía</h3><div class="sub">% de la energía inyectada · punto naranja = mes sobre la meta</div><div class="ch sm" id="c_loss"></div></div>
+        <div class="card s4"><h3>Collection Efficiency</h3><div class="sub">% = cobros / exigible · línea punteada = meta</div><div class="ch sm" id="c_ce_mini"></div></div>
+        <div class="card s4"><h3>SAIDI mensual</h3><div class="sub">Minutos de interrupción por cliente servido</div><div class="ch sm" id="c_saidi_mini"></div></div>
+      </div>
+
+      <div class="sec">Prioridades de intervención</div>
+      <div class="grid">
+        <div class="card s5"><h3>Top 10 zonas por criticidad</h3><div class="sub" id="crit_sub">Índice ponderado (mayor = más crítica)</div><div class="ch lg" id="c_crit"></div></div>
+        <div class="card s7"><h3>Top 10 transformadores a intervenir</h3><div class="sub">Ordenados por ranking · beneficio = USD recuperables · pérdida y morosidad en %</div><div class="scroll" style="max-height:380px" id="t_top10"></div></div>
+      </div>
+
+      <div class="sec">Distribución geográfica de zonas</div>
+      <div class="card">
+        <h3>Mapa de zonas y clientes georreferenciados</h3>
+        <div class="sub">Centros aproximados calculados con las coordenadas de clientes · color = criticidad del período seleccionado (anual si no hay filtro de meses) · al pasar el cursor: criticidad, pérdida %, deuda en USD y disponibilidad AMI</div>
+        <div class="map-key"><span><i class="map-dot" style="background:#dc2626"></i>Alta ≥70 puntos</span><span><i class="map-dot" style="background:#f97316"></i>Media ≥45</span><span><i class="map-dot" style="background:#2563eb"></i>Menor &lt;45</span></div>
+        <div class="map-layout"><div id="zoneMap" class="map-surface" aria-label="Mapa interactivo de zonas EnerGrid"></div>
+          <div id="mapPanel" class="map-panel"><h4>Selecciona una zona</h4><p>Pulsa uno de los puntos del mapa para ver sus indicadores y filtrar el dashboard.</p></div>
+        </div>
+        <p class="map-footnote">Los puntos muestran centroides de clientes activos, no la extensión territorial de cada zona. Criticidad, pérdida %, disponibilidad AMI y morosidad corresponden al período y a los filtros de dimensión ya cargados (el tooltip y el panel indican el período de los datos y avisan mientras se actualizan). No se visualizan coordenadas individuales de clientes.</p>
+      </div>
+
+      <div class="sec">Alertas y control de datos</div>
+      <div class="grid">
+        <div class="card s5"><h3>Alertas por tipo y severidad</h3><div class="sub" id="al_sub">Cantidad de alertas activas</div><div class="ch" id="c_alert"></div></div>
+        <div class="card s7"><h3>Matriz de control y reconciliación</h3><div class="sub">Validación de cifras entre vistas y hechos (sin doble conteo)</div><div id="t_ctrl"></div></div>
+      </div>
+    </section>
+
+    <!-- ================= LOSSES ================= -->
+    <section class="view" id="loss">
+      <div class="nanote" id="na_loss"></div>
+      <div class="kpis" id="k_loss"></div>
+      <div class="grid">
+        <div class="card s7"><h3>Reconciliación de energía</h3><div class="sub">GWh · Inyectada − técnica − no técnica − brecha de medición = Facturada</div><div class="ch" id="c_wf"></div></div>
+        <div class="card s5"><h3>Composición de la pérdida</h3><div class="sub">% sobre la pérdida total (GWh)</div><div class="ch" id="c_comp"></div></div>
+        <div class="card s6"><h3>Pérdida mensual por componente</h3><div class="sub">Barras: GWh · Línea: % de pérdida sobre energía inyectada</div><div class="ch" id="c_lm"></div></div>
+        <div class="card s6"><h3>Ranking de pérdida por zona</h3><div class="sub" id="lz_sub">% de pérdida sobre energía inyectada</div><div class="ch" id="c_lz"></div></div>
+        <div class="card s6"><h3>Disponibilidad AMI</h3><div class="sub">% de lecturas válidas / esperadas (definición exacta en el pie de página) · rojo = mes bajo el umbral</div><div class="ch" id="c_ami"></div></div>
+        <div class="card s6"><h3>Facturas con consumo estimado</h3><div class="sub">% de facturas emitidas con lectura «Estimado» o «Faltante» · línea punteada = referencia (1 − umbral AMI) · naranja = mes sobre la referencia</div><div class="ch" id="c_est"></div></div>
+      </div>
+    </section>
+
+    <!-- ================= COLLECTIONS ================= -->
+    <section class="view" id="col">
+      <div class="kpis" id="k_col"></div>
+      <div class="grid">
+        <div class="card s5"><h3>Cartera por antigüedad</h3><div class="sub" id="ag_sub">USD de saldo por tramo de vencimiento al último corte</div><div class="ch" id="c_aging"></div></div>
+        <div class="card s7"><h3>Cobros vs. exigible y Collection Efficiency</h3><div class="sub">Barras: USD · Línea: CE % (cobros / exigible) · punteada = meta</div><div class="ch" id="c_ce"></div></div>
+        <div class="card s6"><h3>Morosidad &gt;60 días por zona</h3><div class="sub" id="m60_sub">% del saldo de cada zona</div><div class="ch" id="c_m60"></div></div>
+        <div class="card s6"><h3>Saldo total vs. &gt;60 días por tipo de cliente</h3><div class="sub">USD al último corte</div><div class="ch" id="c_seg"></div></div>
+        <div class="card s7"><h3>Cartera por tarifa</h3><div class="sub" id="tar_sub">Saldo total y saldo &gt;60 días al último corte</div><div class="ch" id="c_tarifa"></div></div>
+        <div class="card s5"><h3>Detalle por tarifa</h3><div class="sub">USD al último corte · proporción vencida &gt;60 días</div><div class="scroll" id="t_tarifa"></div></div>
+        <div class="card s12"><h3>Detalle por segmento de consumo</h3><div class="sub">Saldo en USD y proporción vencida &gt;60 días</div><div class="scroll" id="t_seg"></div></div>
+      </div>
+    </section>
+
+    <!-- ================= RELIABILITY ================= -->
+    <section class="view" id="rel">
+      <div class="nanote" id="na_rel"></div>
+      <div class="kpis" id="k_rel"></div>
+      <div class="grid">
+        <div class="card s7"><h3>SAIDI y SAIFI mensual</h3><div class="sub">Barras: min por cliente (SAIDI) · Línea: interrupciones por cliente (SAIFI)</div><div class="ch" id="c_saidi"></div></div>
+        <div class="card s5"><h3>Top causas de interrupción</h3><div class="sub">Cliente-minutos afectados (min)</div><div class="ch" id="c_cause"></div></div>
+        <div class="card s5"><h3>SAIDI acumulado por zona</h3><div class="sub">Minutos por cliente en el período · Top 10 zonas</div><div class="ch" id="c_saidi_z"></div></div>
+        <div class="card s7"><h3>Circuitos recurrentes críticos</h3><div class="sub" id="rec_sub">≥ P90 de eventos y ≥ 6 meses con falla · cliente-minutos (cli-min)</div><div class="scroll" id="t_rec"></div></div>
+        <div class="card s12"><h3>Alertas de calidad y medición</h3><div class="sub" id="svc_sub">Deterioro de SAIDI y disponibilidad AMI baja</div><div class="scroll" style="max-height:300px" id="t_svc"></div></div>
+      </div>
+    </section>
+  </main>
+
+
+
+  <!-- Detalle de transformador / cliente (se abre desde el Top 10; Esc o el botón lo cierran) -->
+  <div class="dm" id="dm" role="dialog" aria-modal="true" aria-labelledby="dmTitle" aria-hidden="true">
+    <div class="dm-box">
+      <div class="dm-head"><div><h2 id="dmTitle"></h2><div class="sub" id="dmSub"></div></div>
+        <button type="button" class="dm-x" id="dmClose" aria-label="Cerrar detalle">✕</button></div>
+      <div class="dm-body" id="dmBody"></div>
+    </div>
+  </div>
+
+  <script>
+    const C = { bl: '#2563eb', bl2: '#93c5fd', tq: '#14b8a6', tqd: '#0d9488', or: '#f97316', rd: '#dc2626', am: '#f59e0b', sl: '#94a3b8', mut: '#64748b', tx: '#0f172a' };
+    const $ = id => document.getElementById(id);
+    const nf = (x, d = 0) => x == null || isNaN(x) ? '—' : Number(x).toLocaleString('es', { minimumFractionDigits: d, maximumFractionDigits: d });
+    const pct = (x, d = 1) => x == null ? '—' : nf(x * 100, d) + '%';
+    const pt = v => { const x = v * 100; return nf(x, Math.abs(x - Math.round(x)) < 1e-6 ? 0 : 1) + '%' };
+    const usd = x => { if (x == null) return '—'; const a = Math.abs(x); return a >= 1e6 ? '$' + nf(x / 1e6, 2) + ' M' : a >= 1e3 ? '$' + nf(x / 1e3, 1) + ' k' : '$' + nf(x, 0) };
+    const gwh = x => x == null ? '—' : nf(x / 1e6, 1) + ' GWh';
+    const mon = s => String(s).slice(0, 7);
+    // Definición única de la disponibilidad AMI para el tooltip de los KPI (el pie de página y el README dicen lo mismo).
+    const AMI_TIP = 'Disponibilidad AMI = lecturas válidas / lecturas esperadas de los medidores AMI del período. Válida: estado «Leído» con ami_valid = 1. Esperada: la lectura programada de cada medidor AMI en el mes (Leído, Estimado o Faltante). Como hay una por medidor y mes, equivale a medidores con lectura válida / medidores AMI activos del mes. Varios meses: Σ válidas / Σ esperadas.';
+    // Definición única del KPI de consumo estimado (tooltip). Es un % de FACTURAS, no de kWh; la referencia es derivada, no una meta oficial.
+    const EST_TIP = 'Consumo estimado = facturas estimadas / facturas emitidas del período y de los filtros activos (Σ estimadas / Σ emitidas; es un porcentaje de FACTURAS, no de kWh). Estimada: factura cuya lectura es «Estimado» o «Faltante» (is_estimated = 1). Referencia: 1 − cfg_parametros.alerta_ami_min (con umbral AMI de 93 % = 7 %), la indisponibilidad de lectura que tolera la política AMI; el caso no define una meta oficial de facturas estimadas y los medidores sin AMI también generan estimaciones. Tendencia: variación en puntos porcentuales frente al mes previo.';
+    const charts = {};
+    const ch = id => charts[id] || (charts[id] = echarts.init($(id), null, { renderer: 'canvas' }));
+
+    /* ---- estilo ECharts (tema claro) ---- */
+    const tip = { backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, padding: [8, 12], textStyle: { color: C.tx, fontSize: 12 }, extraCssText: 'box-shadow:0 8px 24px rgba(15,23,42,.12);border-radius:10px' };
+    const base = { textStyle: { fontFamily: 'Inter' }, grid: { left: 6, right: 14, top: 38, bottom: 6, containLabel: true }, tooltip: { trigger: 'axis', ...tip }, animationDuration: 500 };
+    const LG = { top: 0, right: 0, icon: 'roundRect', itemWidth: 10, itemHeight: 10, textStyle: { color: '#475569', fontSize: 12 } };
+    const axis = (o = {}) => ({ axisLine: { lineStyle: { color: '#cbd5e1' } }, axisTick: { show: false }, axisLabel: { color: C.mut, fontSize: 11 }, splitLine: { lineStyle: { color: '#eef1f6' } }, ...o });
+    const xcat = (data, o = {}) => ({ type: 'category', data, ...axis({ splitLine: { show: false } }), ...o });
+    const yval = (fmt, o = {}) => ({ type: 'value', ...axis({ axisLabel: { color: C.mut, fontSize: 11, formatter: fmt } }), nameTextStyle: { color: C.mut, fontSize: 11, align: 'left' }, ...o });
+    const grad = (a, b) => new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: a }, { offset: 1, color: b }]);
+    const ml = (val, color, label, vertical) => ({ symbol: 'none', silent: true, lineStyle: { type: 'dashed', color, width: 1.5 }, label: { color, fontSize: 11, fontWeight: 600, formatter: label, position: vertical ? 'end' : 'insideEndTop' }, data: [vertical ? { xAxis: val } : { yAxis: val }] });
+    // Resalta el mes elegido en los gráficos de serie mensual (eje categórico con meses AAAA-MM).
+    const draw = (id, opt) => {
+      if (MONTH && opt.xAxis && Array.isArray(opt.xAxis.data) && opt.xAxis.data.includes(MONTH) && opt.series && opt.series[0] && !opt.series[0].markArea)
+        opt.series[0].markArea = { silent: true, itemStyle: { color: 'rgba(37,99,235,.10)' }, data: [[{ xAxis: MONTH }, { xAxis: MONTH }]] };
+      ch(id).setOption({ ...base, ...opt }, true);
+    };
+
+    // ids (opcional): zone_id de cada barra (mismo orden que names) -> clic en la barra filtra/quita la zona.
+    function hbar(id, names, vals, fmt, colorFn, avg, ids) {
+      draw(id, {
+        grid: { left: 6, right: 70, top: 14, bottom: 6, containLabel: true },
+        xAxis: yval(fmt), yAxis: { type: 'category', data: names, ...axis({ splitLine: { show: false }, axisLabel: { color: C.tx, fontSize: 11.5 } }) },
+        tooltip: { ...tip, trigger: 'item', formatter: p => `<b>${p.name}</b><br>${fmt(p.value)}` },
+        series: [{
+          type: 'bar', barWidth: 15, cursor: ids ? 'pointer' : 'default', data: vals.map((v, i) => ({ value: v, itemStyle: { color: colorFn(v, i), borderRadius: [0, 6, 6, 0] } })),
+          label: { show: true, position: 'right', color: C.tx, fontSize: 11.5, formatter: p => fmt(p.value) },
+          markLine: avg ? ml(avg[0], C.mut, avg[1], true) : undefined
+        }]
+      });
+      const c = ch(id); c.off('click');
+      if (ids) c.on('click', p => pickZone(ids[p.dataIndex]));
+    }
+
+    /* ---- componentes HTML ---- */
+    function kpi(o) {
+      return `<div class="kpi" style="--c:${o.c}"><div class="kl"${o.tip ? ` title="${htmlSafe(o.tip)}"` : ''}><span>${o.l}${o.tip ? '<em class="info" aria-label="Definición del indicador">ⓘ</em>' : ''}</span>${o.st ? `<em class="pill ${o.st[0]}">${o.st[1]}</em>` : ''}</div>
+      <div class="kv">${o.v}</div><div class="kd">${o.s || ''}</div>${o.t ? `<div class="kt">${o.t}</div>` : ''}</div>`;
+    }
+    const grp = (title, sub, color, items) => `<div class="kg" style="--g:${color}"><div class="kgh"><i></i><b>${title}</b><span>${sub}</span></div><div class="kgi">${items.join('')}</div></div>`;
+    function tbl(cols, rows, attr) {
+      return `<table><thead><tr>${cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr ${attr ? attr(r) : ''}>${cols.map(c => `<td class="${c[2] || ''}">${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    }
+    const sev = s => `<span class="tag ${s === 'Alta' ? 'alta' : 'media'}">${s}</span>`;
+    const miniBar = (v, max, color) => `<span class="bar" style="--bar:${color}"><i style="width:${max ? Math.min(100, v / max * 100) : 0}%"></i></span>`;
+    // variación vs. mes previo: good = 'down' (menor es mejor) | 'up'. Con un mes elegido compara ese mes contra el anterior.
+    const upTo = rows => MONTH ? rows.filter(r => mon(r.period_start) <= MONTH) : rows;
+    function trend(rows, key, good, kind = 'pp') {
+      const a = upTo(rows).filter(r => r[key] != null); if (a.length < 2) return '';
+      const l = a[a.length - 1][key], p = a[a.length - 2][key], d = l - p;
+      const txt = kind === 'pp' ? nf(Math.abs(d) * 100, 1) + ' pp' : nf(p ? Math.abs(d / p) * 100 : 0, 1) + '%';
+      const fav = good === 'down' ? d <= 0 : d >= 0;
+      return `<span class="${fav ? 'fav' : 'adv'}">${d >= 0 ? '▲' : '▼'} ${txt}</span> vs. mes previo (${mon(a[a.length - 2].period_start)})`;
+    }
+
+    // ================= Estado único de filtros (fuente de verdad) =================
+    // MONTH: '' = todo el período | 'AAAA-MM'.  SEL: zonas seleccionadas (todas = sin filtro de zona).
+    // Mapa, chips, gráficos y tablas LEEN este estado y lo CAMBIAN solo mediante setZones()/pickZone(): un único camino.
+    let ZONES = [], SEL = new Set(), D = null;
+    let allMonths = [], MONTH = '';
+    // Filtros por dimensión ('' = Todas/Todos). Se envían al backend solo si tienen valor; el backend los valida y combina.
+    let REGION = '', CIRC = '', TARIFF = '', CTYPE = '', FILTERS = { regions: [], circuits: [], tariffs: [], client_types: [], dim_ready: true };
+    const zoneFiltered = () => SEL.size > 0 && SEL.size < ZONES.length;
+    const inRegion = z => !REGION || z.region === REGION;                       // zona dentro de la región elegida
+    const visibleZoneIds = () => ZONES.filter(inRegion).map(z => z.zone_id);   // SEL siempre es un subconjunto de estas zonas
+    const zf = rows => zoneFiltered() ? rows.filter(r => SEL.has(r.zone_id)) : rows;
+    const monthLabel = m => { const s = new Date(`${m}-15T12:00:00`).toLocaleDateString('es-EC', { month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1) };
+    const sameSet = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
+    let loadTimer, lastChanged = "";
+    function setZones(next) {
+      if (!next.size) next = new Set(visibleZoneIds());   // sin zonas = todas
+      if (sameSet(next, SEL)) return;                              // sin cambio real: no recargar (evita ciclos)
+      lastChanged = "zones"; SEL = next; syncCircuits(); mkChips(); renderMapStyle(); renderMapPanel();
+      activeRequest?.abort(); optionsRequest?.abort(); ++loadSeq; clearTimeout(loadTimer); loadTimer = setTimeout(load, 200);
+    }
+    // Clic en mapa / gráfico / tabla: aísla esa zona; si ya es la única seleccionada, quita la selección.
+    function pickZone(id) {
+      if (id == null) return;
+      const z = ZONES.find(x => x.zone_id === id);
+      if (REGION && z && z.region !== REGION) { REGION = z.region; $('regionSel').value = REGION; }   // zona de otra región: se pasa a la región de esa zona
+      setZones(SEL.size === 1 && SEL.has(id) ? new Set() : new Set([id]));
+    }
+    function mkChips() {
+      $('chips').innerHTML = ZONES.filter(z => inRegion(z) && (!FILTERS.zones || FILTERS.zones.some(v => v.zone_id === z.zone_id))).map(z => `<span class="chip ${SEL.has(z.zone_id) ? 'on' : ''}" data-id="${z.zone_id}">${z.zone_name}</span>`).join('');
+      const vis = visibleZoneIds(), allVis = SEL.size === vis.length;
+      $('fcount').textContent = allVis ? (REGION ? `Todas las zonas de la región ${REGION} (${vis.length})` : `Todas las zonas (${vis.length})`) : `${SEL.size} de ${vis.length} zonas`;
+      $('fall').style.visibility = allVis ? 'hidden' : 'visible';
+    }
+
+    // Mapa independiente de las consultas analíticas; carga únicamente 15 centroides por zona.
+    let GEO = [], mapObj = null, mapLayer = null, markers = new Map(), lastFit = '';
+    const htmlSafe = x => String(x ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const zoneColor = score => score >= 70 ? '#dc2626' : score >= 45 ? '#f97316' : '#2563eb';
+    async function fetchGeo() {
+      try {
+        const resp = await fetch('/api/map/zones');
+        if (!resp.ok) throw new Error('Respuesta HTTP ' + resp.status);
+        GEO = await resp.json();
+        renderMap();
+      } catch (e) {
+        $('mapPanel').textContent = 'No se pudieron cargar las ubicaciones: ' + e.message;
+      }
+    }
+    function renderMap() {
+      if (!window.L) { $('mapPanel').textContent = 'No fue posible cargar Leaflet. Comprueba la conexión a Internet.'; return; }
+      if (!GEO.length || !D) return;
+      if (!mapObj) {
+        mapObj = L.map('zoneMap', {scrollWheelZoom:false}).setView([-0.18,-78.52], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:18, attribution:'&copy; OpenStreetMap contributors'}).addTo(mapObj);
+        mapLayer = L.layerGroup().addTo(mapObj);
+        setTimeout(() => mapObj.invalidateSize(), 100);
+      }
+      // Los 15 puntos se crean UNA sola vez; después solo se actualizan color y contenido de tooltips/panel (no se recrean ni se cargan datos).
+      if (!markers.size) buildMarkers();
+      updateMapData();
+    }
+    // Estado de los datos del mapa. MAPST.key = período + filtros de dimensión de los datos mostrados (cambiar de zona no los altera).
+    // status: 'ok' | 'loading' (hay una petición en curso para otro período/filtro) | 'error' (no se pudo actualizar).
+    const MAPST = { key: null, status: 'ok' };
+    const mapKey = () => [MONTH, CIRC, TARIFF, CTYPE].join('|');
+    const dataMonth = () => (D && D.period_filter && D.period_filter.month) || '';        // mes de los datos CARGADOS (no el del selector)
+    const dataLabel = () => dataMonth() ? monthLabel(dataMonth()) : 'Todo el período';
+    const critLevel = s => s >= 70 ? 'Alta' : s >= 45 ? 'Media' : 'Menor';                  // mismos cortes que la leyenda y el color
+    const byZone = (rows, id) => (rows || []).find(x => x.zone_id === id);
+    const amiMinOf = () => ((D && D.params) || {}).alerta_ami_min ?? .93;
+    const mapStatusHtml = () => MAPST.status === 'loading' ? 'Actualizando indicadores del período seleccionado…'
+      : MAPST.status === 'error' ? 'No se pudo actualizar; se muestran los últimos datos cargados.' : '';
+    // Contenido del tooltip: se evalúa al abrirlo (función), por eso siempre lee el D vigente y nunca un valor congelado.
+    function zoneTip(id, name) {
+      const cr = byZone(D && D.crit, id), ls = byZone(D && D.loss_zone, id), am = byZone(D && D.ami_zone, id), st = mapStatusHtml();
+      const hasAmi = am && am.disponibilidad != null;
+      const debt = byZone(D && D.m60_zone, id), cut = D && D.kpi && D.kpi.corte;
+      return `<div class="map-tip"><b>${htmlSafe(name)}</b><div class="mt">${htmlSafe(dataLabel())}</div>
+        Criticidad: <b>${cr ? nf(+cr.score, 1) + ' pts · ' + critLevel(+cr.score) : 'sin dato'}</b><br>
+        Pérdida: <b>${ls && ls.perdida_pct != null ? pct(ls.perdida_pct) : 'sin dato'}</b><br>
+        Deuda total al corte${cut ? ' ' + htmlSafe(d10(cut)) : ''}: <b>${debt && debt.saldo_total != null ? usd(debt.saldo_total) : 'sin dato'}</b><br>
+        Deuda vencida &gt;60 días: <b>${debt && debt.saldo_mayor_60 != null ? usd(debt.saldo_mayor_60) : 'sin dato'}</b><br>
+        Disponibilidad AMI: <b>${hasAmi ? pct(am.disponibilidad, 2) : 'sin dato'}</b>${hasAmi && am.disponibilidad < amiMinOf() ? ' <span class="adv">· bajo umbral</span>' : ''}
+        ${hasAmi && am.esperadas ? `<div class="mt">${nf(am.validas)} válidas / ${nf(am.esperadas)} esperadas</div>` : ''}
+        ${st ? `<div class="st">${htmlSafe(st)}</div>` : ''}</div>`;
+    }
+    function buildMarkers() {
+      for (const g of GEO) {
+        if (!Number.isFinite(+g.latitude) || !Number.isFinite(+g.longitude)) continue;
+        const mk = L.circleMarker([+g.latitude, +g.longitude], { radius: Math.max(8, Math.min(17, 7 + Math.sqrt(+g.client_count) / 5)), color: '#fff', weight: 2, fillColor: '#64748b', fillOpacity: .88 })
+          .bindTooltip(() => zoneTip(g.zone_id, g.zone_name), { sticky: true, direction: 'top', className: 'map-tt' })
+          .on('click', () => pickZone(g.zone_id))   // mismo camino que chips y gráficos
+          .addTo(mapLayer);
+        markers.set(g.zone_id, mk);
+      }
+    }
+    // Color = criticidad del D vigente. No llama a load() ni a setZones(): no puede generar ciclos.
+    function updateMapData() {
+      for (const g of GEO) {
+        const mk = markers.get(g.zone_id); if (!mk) continue;
+        const cr = byZone(D.crit, g.zone_id);
+        mk.setStyle({ fillColor: cr ? zoneColor(+cr.score) : '#64748b' });
+      }
+      renderMapStyle(); refreshMapUI();
+    }
+    // Refresca tooltips abiertos y el panel lateral (nuevos datos o cambio de estado ok / actualizando / error).
+    function refreshMapUI() {
+      for (const mk of markers.values()) if (mk.isTooltipOpen()) mk.getTooltip().update();
+      renderMapPanel();
+    }
+    // Solo estilo/encuadre según SEL (no consulta datos ni dispara cargas): seleccionadas resaltadas, el resto atenuado.
+    function renderMapStyle() {
+      if (!mapObj) return;
+      const f = zoneFiltered(), pts = [];
+      for (const g of GEO) {
+        const mk = markers.get(g.zone_id); if (!mk) continue;
+        const on = !f || SEL.has(g.zone_id);
+        mk.setStyle({ fillOpacity: on ? .88 : .2, opacity: on ? 1 : .35, weight: f && on ? 3 : 2, color: f && on ? '#0f172a' : '#fff' });
+        if (on) { pts.push([+g.latitude, +g.longitude]); if (f) mk.bringToFront(); }
+      }
+      const key = f ? [...SEL].sort((a, b) => a - b).join(',') : 'all';
+      if (key !== lastFit && pts.length) {
+        lastFit = key;
+        mapObj.fitBounds(L.latLngBounds(pts).pad(.25), { maxZoom: f ? 12 : 11 });
+      }
+    }
+    function renderMapPanel() {
+      const p = $('mapPanel');
+      if (!p || !GEO.length) return;
+      const sm = mapStatusHtml(), stat = sm ? `<p class="map-note">${htmlSafe(sm)}</p>` : '';
+      if (!zoneFiltered()) {
+        p.innerHTML = `<h4>Todas las zonas</h4><p>Pulsa un punto del mapa para filtrar todo el dashboard por esa zona. Vuelve a pulsarlo (o usa «Quitar selección») para ver todas.</p>${stat}`;
+        return;
+      }
+      const clear = '<button class="map-action ghost" id="mapClear" type="button">Quitar selección</button>';
+      if (SEL.size > 1) {
+        const ar = ((D && D.ami_zone) || []).filter(r => SEL.has(r.zone_id)), av = ar.reduce((a, r) => a + (+r.validas || 0), 0), ae = ar.reduce((a, r) => a + (+r.esperadas || 0), 0);
+        p.innerHTML = `<h4>${SEL.size} zonas seleccionadas</h4><p>El dashboard muestra la suma de estas zonas.</p>
+          <p><b>Período de los datos:</b> ${htmlSafe(dataLabel())}</p>
+          <p><b>Disponibilidad AMI (selección):</b> ${ae ? pct(av / ae, 2) + ' · ' + nf(av) + ' / ' + nf(ae) + ' lecturas' : 'No disponible'}</p>${stat}${clear}`;
+      } else {
+        const id = [...SEL][0], g = GEO.find(x => x.zone_id === id), zn = (ZONES.find(z => z.zone_id === id) || {}).zone_name || ('Zona ' + id);
+        const cr = D && (D.crit || []).find(x => x.zone_id === id), loss = D && (D.loss_zone || []).find(x => x.zone_id === id), mor = D && (D.m60_zone || []).find(x => x.zone_id === id);
+        const per = dataLabel(), am = D && byZone(D.ami_zone, id), amiMin = amiMinOf();
+        p.innerHTML = `<h4>${htmlSafe(zn)}</h4>
+          <p><b>Período de los datos:</b> ${htmlSafe(per)}</p>${stat}
+          ${g ? `<p><b>Clientes activos con coordenadas:</b> ${nf(g.client_count)}</p>` : ''}
+          <p><b>Criticidad:</b> ${cr ? nf(cr.score, 1) + ' puntos (' + critLevel(+cr.score) + ')' : 'No disponible'}</p>
+          <p><b>Pérdida:</b> ${loss ? pct(loss.perdida_pct) : 'No disponible'}</p>
+          <p><b>Disponibilidad AMI:</b> ${am && am.disponibilidad != null ? pct(am.disponibilidad, 2) + ' · ' + nf(am.validas) + ' / ' + nf(am.esperadas) + ' lecturas' + (am.disponibilidad < amiMin ? ' (bajo umbral ' + pct(amiMin, 0) + ')' : '') : 'No disponible'}</p>
+          <p><b>Morosidad &gt;60 días (último corte):</b> ${mor ? pct(mor.pct) : 'No disponible'}</p>
+          <p class="muted">Localización: centroide de clientes, no ubicación exacta de transformador.</p>${clear}`;
+      }
+      $('mapClear').onclick = () => setZones(new Set());
+    }
+    // ================= Filtros por dimensión: Región / Circuito / Tarifa / Tipo de cliente =================
+    const optHtml = (v, t, sel) => `<option value="${htmlSafe(v)}" ${String(v) === String(sel) ? 'selected' : ''}>${htmlSafe(t)}</option>`;
+    function buildDimSelects() {
+      $('regionSel').innerHTML = optHtml('', 'Todas', REGION) + FILTERS.regions.map(r => optHtml(r, r, REGION)).join('');
+      $('tariffSel').innerHTML = optHtml('', 'Todas', TARIFF) + FILTERS.tariffs.map(t => optHtml(t.tariff_id, t.tariff_name, TARIFF)).join('');
+      $('typeSel').innerHTML = optHtml('', 'Todos', CTYPE) + FILTERS.client_types.map(t => optHtml(t, t, CTYPE)).join('');
+      syncCircuits();
+      $('dimNotice').textContent = FILTERS.dim_ready
+        ? 'El circuito depende de la región/zonas elegidas. Tarifa y tipo de cliente se aplican a cartera, cobranza, consumo estimado y AMI; pérdidas de energía y confiabilidad no se prorratean.'
+        : 'Para filtrar por circuito, tarifa o tipo de cliente ejecuta antes sql/04_procedimientos.sql y sql/05_resumenes_sla.sql (y EXEC energrid.usp_refrescar_resumenes_log) en SQL Server (región, zona y mes funcionan sin él).';
+    }
+    // El circuito depende de la región/zonas: solo se listan los circuitos de las zonas seleccionadas (agrupados por zona).
+    function syncCircuits() {
+      const zs = new Set(SEL), list = FILTERS.circuits.filter(c => zs.has(c.zone_id));
+      if (CIRC && !list.some(c => String(c.circuit_id) === String(CIRC))) CIRC = '';
+      const zn = id => (ZONES.find(z => z.zone_id === id) || {}).zone_name || ('Zona ' + id);
+      let html = optHtml('', 'Todos', CIRC), cur = null;
+      for (const c of list) {
+        if (c.zone_id !== cur) { if (cur !== null) html += '</optgroup>'; html += `<optgroup label="${htmlSafe(zn(c.zone_id))}">`; cur = c.zone_id; }
+        html += optHtml(c.circuit_id, c.circuit_name, CIRC);
+      }
+      if (cur !== null) html += '</optgroup>';
+      $('circuitSel').innerHTML = html;
+    }
+    // Notas discretas de indicadores que el filtro activo no admite + gráfico de cartera por tarifa (Collections).
+    function renderDimExtras() {
+      const na = D.na || {}, f = D.filters || {};
+      const note = (id, keys) => { const m = keys.map(k => na[k]).filter(Boolean), el = $(id); el.innerHTML = m.map(t => `<p>ⓘ ${htmlSafe(t)}</p>`).join(''); el.classList.toggle('on', m.length > 0); };
+      note('na_exec', ['loss', 'rel', 'top10', 'zona', 'alertas', 'ctrl']);
+      note('na_loss', ['loss', 'zona']);
+      note('na_rel', ['rel', 'zona', 'alertas']);
+      const parts = [];
+      if (f.region) parts.push('Región ' + f.region);
+      if (f.circuit != null) { const c = FILTERS.circuits.find(x => x.circuit_id === f.circuit); parts.push('Circuito ' + (c ? c.circuit_name : f.circuit)); }
+      if (f.tariff != null) { const t = FILTERS.tariffs.find(x => x.tariff_id === f.tariff); parts.push('Tarifa ' + (t ? t.tariff_name : f.tariff)); }
+      if (f.client_type) parts.push('Tipo ' + f.client_type);
+      $('dimStatus').textContent = parts.length ? parts.join(' · ') : 'Sin filtros por dimensión';
+
+      const ct = D.cart_tarifa;
+      if (!ct) {
+        ch('c_tarifa').clear();
+        $('t_tarifa').innerHTML = '<p class="muted" style="padding:14px">Para ver la cartera por tarifa ejecuta <code>sql/04_procedimientos.sql</code> (crea <code>mat_cartera_dim</code>).</p>';
+        return;
+      }
+      $('tar_sub').textContent = `Saldo total y saldo >60 días al corte ${D.kpi.corte || '—'} · respeta región, zona, circuito, tarifa y tipo de cliente`;
+      const lbl = { show: true, position: 'top', color: C.tx, fontSize: 11, formatter: p => usd(p.value) };
+      draw('c_tarifa', {
+        legend: LG, xAxis: xcat(ct.map(r => r.tarifa)), yAxis: yval(usd, { name: 'USD' }),
+        tooltip: { ...base.tooltip, axisPointer: { type: 'shadow' }, formatter: ps => `<b>${ps[0].axisValue}</b><br>` + ps.map(p => `${p.marker} ${p.seriesName}: <b>${usd(p.value)}</b>`).join('<br>') + `<br>% >60 días: <b>${pct(ct[ps[0].dataIndex].pct)}</b>` },
+        series: [{ name: 'Cartera total', type: 'bar', data: ct.map(r => r.total), itemStyle: { color: C.bl, borderRadius: [5, 5, 0, 0] }, label: lbl },
+                 { name: 'Cartera >60 días', type: 'bar', data: ct.map(r => r.m60), itemStyle: { color: C.or, borderRadius: [5, 5, 0, 0] }, label: lbl }]
+      });
+      const maxP = Math.max(...ct.map(r => r.pct || 0), .0001);
+      $('t_tarifa').innerHTML = ct.length ? tbl([['Tarifa', r => `<b>${htmlSafe(r.tarifa)}</b>`], ['Saldo total', r => usd(r.total), 'r'], ['Saldo >60 días', r => usd(r.m60), 'r'],
+        ['% >60 días', r => pct(r.pct) + miniBar(r.pct || 0, maxP, C.or), 'r']], ct)
+        : '<p class="muted" style="padding:14px">Sin cartera para la selección actual.</p>';
+    }
+
+    function buildMonthSelect() {
+      $('monthSel').innerHTML = `<option value="">Todo el período</option>` + allMonths.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
+      $('monthSel').value = MONTH;
+    }
+
+    let pollT, loadSeq = 0, activeRequest, optionsRequest, pendingPolls=0;
+    function filterQuery() {
+      const query = new URLSearchParams();
+      if (zoneFiltered()) query.set('zones', [...SEL].sort((a,b)=>a-b).join(','));
+      for (const [k,v] of [['month',MONTH],['region',REGION],['circuit',CIRC],['tariff',TARIFF],['client_type',CTYPE]])
+        if (v) query.set(k,v);
+      return query.toString() ? '?' + query : '';
+    }
+    async function refreshFilterOptions(seq) {
+      optionsRequest?.abort(); optionsRequest = new AbortController();
+      const cleared = [];
+      for (let attempt=0; attempt<7; attempt++) {
+        const resp = await fetch('/api/filters'+filterQuery(), {signal:optionsRequest.signal});
+        const opts = await resp.json();
+        if (seq !== loadSeq) return false;
+        if (!resp.ok) throw new Error(opts.error || 'No se pudieron verificar los filtros');
+        if (opts.valid) {
+          FILTERS=opts;
+          allMonths=opts.months || allMonths;
+          buildDimSelects(); buildMonthSelect(); mkChips();
+          if(cleared.length) $('dimNotice').textContent='Se limpiaron filtros sin combinaciones: '+cleared.join(', ')+'.';
+          return true;
+        }
+        const invalid = [
+          ['client_type', CTYPE && !opts.client_types.includes(CTYPE), ()=>{CTYPE='';}],
+          ['tariff', TARIFF && !opts.tariffs.some(x=>String(x.tariff_id)===TARIFF), ()=>{TARIFF='';}],
+          ['circuit', CIRC && !opts.circuits.some(x=>String(x.circuit_id)===CIRC), ()=>{CIRC='';}],
+          ['zones', zoneFiltered() && ![...SEL].some(z=>opts.zones.some(x=>x.zone_id===z)), ()=>{SEL=new Set(visibleZoneIds());}],
+          ['region', REGION && !opts.regions.includes(REGION), ()=>{REGION='';SEL=new Set(ZONES.map(z=>z.zone_id));}],
+          ['month', MONTH && !opts.months.includes(MONTH), ()=>{MONTH='';}]
+        ];
+        const fix=invalid.find(x=>x[1] && x[0]!==lastChanged) || invalid.find(x=>x[1]);
+        if (!fix) throw new Error('No hay datos para esa seleccion. Limpia los filtros.');
+        fix[2]();cleared.push(fix[0]);
+      }
+      throw new Error('No se encontro una combinacion valida de filtros.');
+    }
+    async function load(silent) {
+      const frontendStarted=performance.now();
+      if(!silent) pendingPolls=0;
+      const mySeq=++loadSeq;
+      activeRequest?.abort(); optionsRequest?.abort();
+      clearTimeout(pollT);
+      if (!silent) $('load').style.display='grid';
+      try {
+        if (!silent && !await refreshFilterOptions(mySeq)) return;
+        if(mySeq!==loadSeq) return;
+        activeRequest=new AbortController();
+        const reqKey=mapKey();
+        if(MAPST.key!==reqKey) {MAPST.status='loading';refreshMapUI();}
+        const resp=await fetch('/api/dashboard'+filterQuery(),{signal:activeRequest.signal});
+        const data=await resp.json();
+        if(mySeq!==loadSeq) return;
+        if(!resp.ok || data.error) throw new Error(data.error || 'Respuesta HTTP '+resp.status);
+        D=data; MAPST.key=reqKey; MAPST.status='ok';
+        $('err').style.display='none';render();renderMap();
+        requestAnimationFrame(()=>{if(mySeq===loadSeq) $('dimStatus').dataset.renderMs=(performance.now()-frontendStarted).toFixed(2);});
+        if(D.top10_loading) pollT=setTimeout(()=>load(true),++pendingPolls<=8 ? 500 : 2000);
+        else pendingPolls=0;
+      } catch(e) {
+        if(e.name==='AbortError' || mySeq!==loadSeq) return;
+        const el=$('err');el.style.display='block';el.textContent='No se pudo cargar la informacion: '+e.message;
+        MAPST.status='error';refreshMapUI();
+      } finally {if(mySeq===loadSeq) $('load').style.display='none';}
+    }
+
+    function render() {
+      const k = D.kpi, T = D.targets, P = D.params || {};
+      const meta = T.perdida_meta, ceMeta = T.ce_meta, amiMin = P.alerta_ami_min ?? .93, estMeta = T.est_meta ?? null;
+      const filtered = zoneFiltered();
+      const allRange = `${String(P.periodo_desde).slice(0, 7)} → ${String(P.periodo_hasta).slice(0, 7)}`;
+      const rangeLabel = MONTH ? monthLabel(MONTH) : allRange;
+      $('period').textContent = `Período ${rangeLabel} · Corte de cartera ${k.corte || 'no disponible'}`;
+      $('dateNotice').textContent = D.partial_notice || 'Todo el período: acumulado de todos los meses disponibles en las tablas intermedias (no se limita a un año).';
+      $('activeRange').textContent = MONTH ? monthLabel(MONTH) : 'Todo el período · ' + allRange;
+      const lm = D.loss_month, rm = D.rel_month, worst = zf(D.crit)[0];
+      const subZ = filtered ? ` · ${SEL.size} zona(s) seleccionada(s)` : '';
+
+      /* ===== EXECUTIVE ===== */
+      const dpp = (k.perdida_pct - meta) * 100, lossOk = k.perdida_pct <= meta, ceOk = k.ce >= ceMeta, amiOk = k.ami >= amiMin;
+      $('ins').innerHTML = [
+        [lossOk ? C.tqd : C.or, `<b>Pérdidas:</b> ${pct(k.perdida_pct)} de la energía inyectada, ${nf(Math.abs(dpp), 1)} pp ${dpp > 0 ? 'por encima' : 'por debajo'} de la meta (${pct(meta)}). Pérdida evitable estimada: <b>${usd(k.evitable_usd)}</b>.`],
+        [ceOk ? C.tqd : C.or, `<b>Cobranza:</b> Collection Efficiency ${pct(k.ce)} (meta ${pct(ceMeta, 0)}). Cartera &gt;60 días: <b>${usd(k.m60_usd)}</b> (${pct(k.m60_pct)} del saldo).`],
+        [C.bl, `<b>Calidad:</b> SAIDI ${nf(k.saidi)} min/cliente y disponibilidad AMI ${pct(k.ami)}.${worst ? ` Zona más crítica: <b>${worst.zone_name}</b> (score ${nf(worst.score, 1)}).` : ''}`]
+      ].map(i => `<div class="ins" style="--c:${i[0]}">${i[1]}</div>`).join('');
+
+      $('k_exec').innerHTML =
+        grp('Pérdidas de energía', 'kWh → USD', C.bl, [
+          kpi({ l: 'Pérdida de energía', v: pct(k.perdida_pct), s: `Meta ${pct(meta)} · ${gwh(k.injected - k.billed)}`, c: lossOk ? C.tq : C.or, st: lossOk ? ['ok', 'En meta'] : ['bad', 'Sobre meta'], t: trend(lm, 'perdida_pct', 'down') }),
+          kpi({ l: 'Pérdida evitable', v: usd(k.evitable_usd), s: 'USD recuperables en el período', c: C.bl })]) +
+        grp('Cobranza', 'USD', C.tqd, [
+          kpi({ l: 'Collection Eff.', v: pct(k.ce), s: `Meta ${pct(ceMeta, 0)} · cobros / exigible`, c: ceOk ? C.tq : C.or, st: ceOk ? ['ok', 'En meta'] : ['warn', 'Bajo meta'], t: trend(D.cob, 'ce', 'up') }),
+          kpi({ l: 'Cartera >60 días', v: usd(k.m60_usd), s: `${pct(k.m60_pct)} del saldo · DSO ${k.dso == null ? '—' : nf(k.dso) + ' d'}`, c: C.or })]) +
+        grp('Calidad del servicio', 'min · %', C.or, [
+          kpi({ l: 'SAIDI', v: k.saidi == null ? '—' : nf(k.saidi) + ' min', s: `SAIFI ${nf(k.saifi, 2)} · acumulado del período`, c: C.bl, t: trend(rm, 'saidi', 'down', 'rel') }),
+          kpi({ l: 'Disponibilidad AMI', v: pct(k.ami), s: `Umbral ${pct(amiMin, 0)}`, c: amiOk ? C.tq : C.or, st: amiOk ? ['ok', 'Cumple'] : ['warn', 'Bajo umbral'], t: trend(D.ami, 'disponibilidad', 'up'), tip: AMI_TIP })]);
+
+      const xm = lm.map(r => mon(r.period_start));
+      draw('c_loss', {
+        xAxis: xcat(xm, { boundaryGap: false }),
+        yAxis: yval(pt, { scale: true, min: v => Math.max(0, Math.min(v.min, meta) - .01), max: v => Math.max(v.max, meta) + .01 }),
+        tooltip: { ...base.tooltip, valueFormatter: v => pct(v) },
+        series: [{
+          name: 'Pérdida de energía', type: 'line', smooth: true, symbolSize: 8, lineStyle: { width: 3, color: C.bl }, areaStyle: { color: grad('rgba(37,99,235,.18)', 'rgba(37,99,235,0)') },
+          data: lm.map(r => ({ value: r.perdida_pct, itemStyle: { color: r.perdida_pct > meta ? C.or : C.bl } })), markLine: ml(meta, C.or, 'Meta ' + pct(meta))
+        }]
+      });
+      draw('c_ce_mini', {
+        xAxis: xcat(D.cob.map(r => mon(r.period_start)), { boundaryGap: false }),
+        yAxis: yval(pt, { scale: true, min: v => Math.min(v.min, ceMeta) - .03, max: v => Math.max(v.max, ceMeta) + .03 }),
+        tooltip: { ...base.tooltip, valueFormatter: v => pct(v) },
+        series: [{ name: 'Collection Efficiency', type: 'line', smooth: true, symbolSize: 8, connectNulls: true, data: D.cob.map(r => r.ce), lineStyle: { width: 3, color: C.tq }, itemStyle: { color: C.tq }, areaStyle: { color: grad('rgba(20,184,166,.18)', 'rgba(20,184,166,0)') }, markLine: ml(ceMeta, C.or, 'Meta ' + pct(ceMeta, 0)) }]
+      });
+      draw('c_saidi_mini', {
+        xAxis: xcat(rm.map(r => mon(r.period_start))), yAxis: yval(v => nf(v), { name: 'min / cliente' }),
+        tooltip: { ...base.tooltip, valueFormatter: v => nf(v, 1) + ' min' },
+        series: [{ name: 'SAIDI', type: 'bar', barWidth: '50%', data: rm.map(r => r.saidi), itemStyle: { color: C.bl, borderRadius: [5, 5, 0, 0] } }]
+      });
+
+      const cr = zf(D.crit).slice(0, 10).reverse(), maxS = Math.max(...cr.map(r => r.score), 1);
+      $('crit_sub').textContent = P.w_impacto != null ? `Índice ponderado: impacto ${pct(P.w_impacto, 0)} · pérdida ${pct(P.w_perdida, 0)} · morosidad ${pct(P.w_morosidad, 0)} · calidad ${pct(P.w_calidad, 0)} (mayor = más crítica)` : 'Índice ponderado (mayor = más crítica)';
+      if (D.period_filter?.partial) $('crit_sub').textContent += ' · período ' + rangeLabel;
+      hbar('c_crit', cr.map(r => r.zone_name), cr.map(r => +r.score.toFixed(1)), v => nf(v, 1), v => v >= maxS * .75 ? C.or : C.bl, undefined, cr.map(r => r.zone_id));
+
+      const t10 = D.top10, maxT = Math.max(...t10.map(r => +r.score), 1);
+      $('t_top10').innerHTML = t10.length ? tbl([
+        ['#', r => `<b>${r.ranking}</b>`], ['Transformador', r => `<b>${htmlSafe(r.transformer_name)}</b>`],
+        ['Score', r => nf(+r.score, 1) + miniBar(+r.score, maxT, C.bl), 'r'], ['Beneficio USD', r => usd(r.usd), 'r'],
+        ['Pérdida', r => pct(r.perdida_pct), 'r'], ['Morosidad', r => pct(r.morosidad_pct), 'r'],
+        ['Causa dominante', r => `<span class="tag cause">${htmlSafe(r.causa)}</span>`], ['KPI seguimiento', r => `<span class="muted">${htmlSafe(r.kpi || '')}</span>`]], t10, r => r.transformer_id != null ? `data-tr="${+r.transformer_id}" tabindex="0" title="Clic para ver el detalle del transformador"` : '')
+        : (D.top10_loading ? '<p class="muted" style="padding:14px">Calculando el Top 10 de transformadores (consulta pesada; esta tabla se actualizará sola)…</p>'
+          : '<p class="muted" style="padding:14px">Sin transformadores para la selección actual (mes y zona).</p>');
+
+      const types = [...new Set(D.al_sum.map(a => a.tipo_alerta))];
+      $('al_sub').textContent = 'Cantidad de alertas activas' + subZ;
+      draw('c_alert', {
+        legend: LG, tooltip: { ...base.tooltip, axisPointer: { type: 'shadow' } },
+        xAxis: xcat(types, { axisLabel: { color: C.mut, fontSize: 11, interval: 0, width: 90, overflow: 'break' } }), yAxis: yval(v => nf(v), { name: 'N.º alertas' }),
+        series: ['Alta', 'Media'].map((s, i) => ({ name: 'Severidad ' + s.toLowerCase(), type: 'bar', stack: 'a', barWidth: '42%', data: types.map(tp => (D.al_sum.find(a => a.tipo_alerta === tp && a.severidad === s) || { n: 0 }).n), itemStyle: { color: s === 'Alta' ? C.rd : C.am, borderRadius: i ? [5, 5, 0, 0] : 0 } }))
+      });
+      $('t_ctrl').innerHTML = tbl([['Control', r => r.control], ['Esperado', r => nf(r.esperado, 2), 'r'], ['Obtenido', r => nf(r.obtenido, 2), 'r'],
+      ['Estado', r => (r.ok === null || r.ok === undefined || r.pending) ? '<span class="tag media">Calculando…</span>' : r.ok ? '<span class="tag ok">✓ OK</span>' : '<span class="tag bad">✗ Revisar</span>']], D.ctrl);
+
+      /* ===== LOSSES ===== */
+      const sh = v => k.injected ? v / k.injected : null;
+      // Consumo estimado: % de facturas (Σ estimadas / Σ emitidas) + cantidades; estado frente a la referencia derivada de cfg_parametros.
+      const estOk = k.estimadas == null || estMeta == null ? null : k.estimadas <= estMeta;
+      const estSub = k.emit_n ? `${nf(k.est_n)} de ${nf(k.emit_n)} facturas emitidas` + (estMeta != null ? ` · Ref. ≤ ${pct(estMeta, 0)}` : '') : 'Sin facturas emitidas en la selección';
+      $('k_loss').innerHTML = [
+        kpi({ l: 'Pérdida total', v: pct(sh(k.injected - k.billed)), s: `${gwh(k.injected - k.billed)} sobre ${gwh(k.injected)} inyectados`, c: lossOk ? C.tq : C.or, st: lossOk ? ['ok', 'En meta'] : ['bad', 'Sobre meta ' + pct(meta)] }),
+        kpi({ l: 'Pérdida técnica', v: pct(sh(k.tecnica)), s: `${gwh(k.tecnica)} · ref. técnica ${P.perdida_tecnica_ref != null ? pct(P.perdida_tecnica_ref, 0) : '—'}`, c: C.bl }),
+        kpi({ l: 'Pérdida no técnica', v: pct(sh(k.no_tecnica)), s: `${gwh(k.no_tecnica)} · fraude / hurto`, c: C.or }),
+        kpi({ l: 'Brecha de medición', v: pct(sh(k.brecha)), s: `${gwh(k.brecha)} · estimación / sin lectura`, c: C.am }),
+        kpi({ l: 'Pérdida evitable', v: usd(k.evitable_usd), s: 'USD recuperables', c: C.tq }),
+        kpi({ l: 'Consumo estimado', v: pct(k.estimadas, 1), s: estSub, c: estOk === null ? C.am : estOk ? C.tq : C.or, st: estOk === null ? null : estOk ? ['ok', 'En referencia'] : ['warn', 'Sobre referencia'], t: trend(D.est, 'pct_estimadas', 'down'), tip: EST_TIP })].join('');
+
+      const st = ['Inyectada', 'P. técnica', 'P. no técnica', 'Brecha medición', 'Facturada'];
+      const vals = [k.injected, k.tecnica, k.no_tecnica, k.brecha, k.billed];
+      const bs = [0, k.injected - k.tecnica, k.injected - k.tecnica - k.no_tecnica, k.billed, 0];
+      const col = [C.bl, C.bl2, C.or, C.am, C.tq];
+      draw('c_wf', {
+        grid: { left: 6, right: 14, top: 30, bottom: 6, containLabel: true },
+        tooltip: { ...tip, trigger: 'item', formatter: p => p.seriesIndex === 1 ? `<b>${p.name}</b><br>${gwh(vals[p.dataIndex])} (${pct(sh(vals[p.dataIndex]))} de la inyectada)` : '' },
+        xAxis: xcat(st), yAxis: yval(v => nf(v / 1e6, 0), { name: 'GWh' }),
+        series: [{ type: 'bar', stack: 'w', data: bs, itemStyle: { color: 'transparent' }, silent: true },
+        { type: 'bar', stack: 'w', barWidth: '52%', data: vals.map((v, i) => ({ value: v, itemStyle: { color: col[i], borderRadius: 6 } })), label: { show: true, position: 'top', color: C.tx, fontSize: 11.5, fontWeight: 600, formatter: p => nf(vals[p.dataIndex] / 1e6, 1) } }]
+      });
+      const totL = k.tecnica + k.no_tecnica + k.brecha;
+      draw('c_comp', {
+        title: { text: pct(sh(k.injected - k.billed)), subtext: 'pérdida total', left: 'center', top: '34%', textStyle: { fontSize: 24, fontWeight: 800, color: C.tx }, subtextStyle: { color: C.mut, fontSize: 12 } },
+        tooltip: { ...tip, trigger: 'item', formatter: p => `<b>${p.name}</b><br>${gwh(p.value)} · ${nf(p.percent, 1)}% de la pérdida` },
+        legend: { ...LG, top: 'auto', bottom: 0, right: 'auto', left: 'center' },
+        series: [{
+          type: 'pie', radius: ['52%', '74%'], center: ['50%', '44%'], itemStyle: { borderColor: '#fff', borderWidth: 3, borderRadius: 6 }, label: { color: C.tx, fontSize: 12, fontWeight: 600, formatter: p => nf(p.percent, 1) + '%' },
+          data: [{ name: 'Técnica', value: k.tecnica, itemStyle: { color: C.bl } }, { name: 'No técnica', value: k.no_tecnica, itemStyle: { color: C.or } }, { name: 'Brecha de medición', value: k.brecha, itemStyle: { color: C.am } }]
+        }]
+      });
+      draw('c_lm', {
+        legend: LG, xAxis: xcat(xm),
+        yAxis: [yval(v => nf(v / 1e6, 1), { name: 'GWh' }), yval(pt, { name: '% pérdida', splitLine: { show: false } })],
+        tooltip: { ...base.tooltip, axisPointer: { type: 'shadow' }, formatter: ps => `<b>${ps[0].axisValue}</b><br>` + ps.map(p => `${p.marker} ${p.seriesName}: <b>${p.seriesType === 'line' ? pct(p.value) : gwh(p.value)}</b>`).join('<br>') },
+        series: [{ name: 'Técnica', type: 'bar', stack: 'p', data: lm.map(r => r.tecnica), itemStyle: { color: C.bl } },
+        { name: 'No técnica', type: 'bar', stack: 'p', data: lm.map(r => r.no_tecnica), itemStyle: { color: C.or } },
+        { name: 'Brecha de medición', type: 'bar', stack: 'p', data: lm.map(r => r.brecha), itemStyle: { color: C.am, borderRadius: [4, 4, 0, 0] } },
+        { name: '% pérdida', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, data: lm.map(r => r.perdida_pct), lineStyle: { width: 2.5, color: C.tx }, itemStyle: { color: C.tx } }]
+      });
+      const lz = zf(D.loss_zone).slice(0, 10).reverse();
+      $('lz_sub').textContent = '% de pérdida sobre energía inyectada · Top 10 · naranja = sobre el promedio del sistema' + subZ;
+      hbar('c_lz', lz.map(r => r.zone_name), lz.map(r => r.perdida_pct), v => pct(v), v => v > k.perdida_pct ? C.or : C.tq, [k.perdida_pct, 'Sistema ' + pct(k.perdida_pct)], lz.map(r => r.zone_id));
+      draw('c_ami', {
+        xAxis: xcat(D.ami.map(r => mon(r.period_start)), { boundaryGap: false }),
+        yAxis: yval(pt, { scale: true, min: v => Math.min(v.min, amiMin) - .02, max: v => Math.min(1, Math.max(v.max, amiMin) + .02) }),
+        tooltip: { ...base.tooltip, valueFormatter: v => pct(v) },
+        series: [{
+          name: 'Disponibilidad AMI', type: 'line', smooth: true, symbolSize: 8, lineStyle: { width: 3, color: C.bl }, areaStyle: { color: grad('rgba(37,99,235,.16)', 'rgba(37,99,235,0)') },
+          data: D.ami.map(r => ({ value: r.disponibilidad, itemStyle: { color: r.disponibilidad < amiMin ? C.rd : C.bl } })), markLine: ml(amiMin, C.rd, 'Umbral ' + pct(amiMin, 0))
+        }]
+      });
+      draw('c_est', {
+        xAxis: xcat(D.est.map(r => mon(r.period_start))), yAxis: yval(pt, { name: '% facturas', max: v => Math.max(v.max, estMeta ?? 0) * 1.15 }),
+        tooltip: { ...base.tooltip, valueFormatter: v => pct(v) },
+        series: [{ name: '% facturas estimadas', type: 'bar', barWidth: '48%', data: D.est.map(r => ({ value: r.pct_estimadas, itemStyle: { color: estMeta != null && r.pct_estimadas > estMeta ? C.or : C.am, borderRadius: [5, 5, 0, 0] } })), markLine: estMeta != null ? ml(estMeta, C.rd, 'Ref. ' + pct(estMeta, 0)) : undefined }]
+      });
+
+      /* ===== COLLECTIONS ===== */
+      $('k_col').innerHTML = [
+        kpi({ l: 'Cartera total', v: usd(k.cartera_total), s: 'Corte: ' + (k.corte || '—'), c: C.bl }),
+        kpi({ l: 'Cartera >60 días', v: usd(k.m60_usd), s: pct(k.m60_pct) + ' del saldo total', c: C.or }),
+        kpi({ l: 'Collection Efficiency', v: pct(k.ce), s: `Meta ${pct(ceMeta, 0)} · cobrado / exigible`, c: ceOk ? C.tq : C.or, st: ceOk ? ['ok', 'En meta'] : ['warn', 'Bajo meta'], t: trend(D.cob, 'ce', 'up') }),
+        kpi({ l: 'DSO', v: k.dso == null ? '—' : nf(k.dso) + ' días', s: 'Días de venta por cobrar', c: C.bl })].join('');
+      const ac = [C.tq, C.bl2, C.am, C.or, C.rd, '#991b1b'];
+      draw('c_aging', {
+        xAxis: xcat(D.aging.map(r => r.aging_bucket)), yAxis: yval(usd, { name: 'USD' }),
+        tooltip: { ...tip, trigger: 'item', formatter: p => `<b>${p.name}</b><br>${usd(p.value)} · ${nf(D.aging[p.dataIndex].facturas)} facturas` },
+        series: [{ type: 'bar', barWidth: '52%', data: D.aging.map((r, i) => ({ value: r.saldo, itemStyle: { color: ac[i % 6], borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: 'top', color: C.tx, fontSize: 11.5, fontWeight: 600, formatter: p => usd(p.value) } }]
+      });
+      draw('c_ce', {
+        legend: LG, xAxis: xcat(D.cob.map(r => mon(r.period_start))),
+        yAxis: [yval(usd, { name: 'USD' }), yval(pt, { name: 'CE %', splitLine: { show: false }, scale: true, min: v => Math.min(v.min, ceMeta) - .05, max: v => Math.max(v.max, ceMeta) + .05 })],
+        tooltip: { ...base.tooltip, axisPointer: { type: 'shadow' }, formatter: ps => `<b>${ps[0].axisValue}</b><br>` + ps.map(p => `${p.marker} ${p.seriesName}: <b>${p.seriesType === 'line' ? pct(p.value) : usd(p.value)}</b>`).join('<br>') },
+        series: [{ name: 'Exigible', type: 'bar', data: D.cob.map(r => r.exigible), itemStyle: { color: C.bl2, borderRadius: [5, 5, 0, 0] } },
+        { name: 'Cobrado', type: 'bar', data: D.cob.map(r => r.cobros), itemStyle: { color: C.bl, borderRadius: [5, 5, 0, 0] } },
+        { name: 'CE %', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 7, connectNulls: true, data: D.cob.map(r => r.ce), lineStyle: { width: 3, color: C.tq }, itemStyle: { color: C.tq }, markLine: ml(ceMeta, C.or, 'Meta ' + pct(ceMeta, 0)) }]
+      });
+      const mz = zf(D.m60_zone).slice(0, 10).reverse();
+      $('m60_sub').textContent = '% del saldo de cada zona · Top 10 · naranja = sobre el promedio del sistema' + subZ;
+      hbar('c_m60', mz.map(r => r.zone_name), mz.map(r => r.pct), v => pct(v), v => v > k.m60_pct ? C.or : C.tq, [k.m60_pct, 'Sistema ' + pct(k.m60_pct)], mz.map(r => r.zone_id));
+      const types2 = [...new Set(D.seg.map(s => s.client_type))];
+      const agg = f => types2.map(t => D.seg.filter(s => s.client_type === t).reduce((a, s) => a + (s[f] || 0), 0));
+      draw('c_seg', {
+        legend: LG, xAxis: xcat(types2), yAxis: yval(usd, { name: 'USD' }), tooltip: { ...base.tooltip, axisPointer: { type: 'shadow' }, valueFormatter: v => usd(v) },
+        series: [{ name: 'Saldo total', type: 'bar', data: agg('total'), itemStyle: { color: C.bl, borderRadius: [5, 5, 0, 0] } },
+        { name: 'Saldo >60 días', type: 'bar', data: agg('m60'), itemStyle: { color: C.or, borderRadius: [5, 5, 0, 0] } }]
+      });
+      const maxM = Math.max(...D.seg.map(r => r.total ? r.m60 / r.total : 0), .0001);
+      $('t_seg').innerHTML = tbl([['Tipo de cliente', r => `<b>${r.client_type}</b>`], ['Segmento de consumo', r => r.segmento], ['Saldo total', r => usd(r.total), 'r'], ['Saldo >60 días', r => usd(r.m60), 'r'],
+      ['% >60 días', r => pct(r.total ? r.m60 / r.total : 0) + miniBar(r.total ? r.m60 / r.total : 0, maxM, C.or), 'r']], D.seg);
+
+      /* ===== RELIABILITY ===== */
+      $('k_rel').innerHTML = [
+        kpi({ l: 'SAIDI', v: k.saidi == null ? '—' : nf(k.saidi, 1) + ' min', s: 'Minutos por cliente · acumulado del período', c: C.bl, t: trend(rm, 'saidi', 'down', 'rel') }),
+        kpi({ l: 'SAIFI', v: nf(k.saifi, 2), s: 'Interrupciones por cliente · acumulado', c: C.bl, t: trend(rm, 'saifi', 'down', 'rel') }),
+        kpi({ l: 'MTTR', v: k.mttr == null ? '—' : nf(k.mttr) + ' min', s: 'Duración media por evento', c: C.bl }),
+        kpi({ l: 'Eventos', v: nf(k.eventos), s: 'Interrupciones totales', c: C.bl }),
+        kpi({ l: 'Disponibilidad AMI', v: pct(k.ami), s: `Umbral ${pct(amiMin, 0)}`, c: amiOk ? C.tq : C.or, st: amiOk ? ['ok', 'Cumple'] : ['warn', 'Bajo umbral'], tip: AMI_TIP })].join('');
+      draw('c_saidi', {
+        legend: LG, xAxis: xcat(rm.map(r => mon(r.period_start))), yAxis: [yval(v => nf(v), { name: 'min / cliente' }), yval(v => nf(v, 2), { name: 'int. / cliente', splitLine: { show: false } })],
+        tooltip: { ...base.tooltip, axisPointer: { type: 'shadow' }, formatter: ps => `<b>${ps[0].axisValue}</b><br>` + ps.map(p => `${p.marker} ${p.seriesName}: <b>${p.seriesType === 'line' ? nf(p.value, 3) : nf(p.value, 1) + ' min'}</b>`).join('<br>') },
+        series: [{ name: 'SAIDI (min)', type: 'bar', barWidth: '46%', data: rm.map(r => r.saidi), itemStyle: { color: C.bl, borderRadius: [5, 5, 0, 0] } },
+        { name: 'SAIFI', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 7, data: rm.map(r => r.saifi), lineStyle: { width: 3, color: C.or }, itemStyle: { color: C.or } }]
+      });
+      const cz = [...D.causes].reverse();
+      hbar('c_cause', cz.map(r => r.cause_name), cz.map(r => r.cm), v => nf(v), (v, i) => i === cz.length - 1 ? C.or : C.bl);
+      const sz = zf(D.crit).filter(r => r.saidi_min != null).sort((a, b) => b.saidi_min - a.saidi_min).slice(0, 10).reverse();
+      hbar('c_saidi_z', sz.map(r => r.zone_name), sz.map(r => r.saidi_min), v => nf(v) + ' min', (v, i) => i >= sz.length - 3 ? C.or : C.bl, undefined, sz.map(r => r.zone_id));
+      const maxC = Math.max(...D.recurr.map(r => r.cliente_minutos), 1);
+      $('t_rec').innerHTML = tbl([['Circuito', r => `<b>#${r.circuit_id}</b>`], ['Eventos', r => nf(r.eventos), 'r'], ['Meses con falla', r => r.meses_con_evento, 'r'],
+      ['Cli-min', r => nf(r.cliente_minutos) + miniBar(r.cliente_minutos, maxC, C.or), 'r'], ['Causa principal', r => `<span class="tag cause">${r.causa_principal}</span>`]], D.recurr);
+      $('svc_sub').textContent = `Deterioro de SAIDI (>${pct(P.alerta_saidi_deterioro ?? .25, 0)} vs. referencia) y disponibilidad AMI baja (<${pct(amiMin, 0)})` + subZ;
+      $('t_svc').innerHTML = D.al_svc.length ? tbl([['Alerta', r => r.tipo_alerta], ['Entidad', r => r.nivel + ' ' + r.entidad_id], ['Severidad', r => sev(r.severidad)], ['Meses en alerta', r => r.meses_en_alerta, 'r']], D.al_svc)
+        : '<p class="muted" style="padding:14px">Sin alertas de calidad o medición para la selección actual.</p>';
+      $('rec_sub').textContent = (MONTH ? 'Circuitos de mayor impacto del mes (la recurrencia ≥ P90 y ≥ 6 meses aplica solo a todo el período)' : '≥ P90 de eventos y ≥ 6 meses con falla') + ' · cliente-minutos (cli-min)' + subZ;
+      renderDimExtras();
+      setTimeout(resize, 50);
+    }
+
+    // ================= Detalle: transformador -> clientes -> cliente (modal) =================
+    // Independiente del dashboard: LEE MONTH solo al abrir (el modal queda fijo en ese mes), usa su propio contador de peticiones (DM.seq)
+    // y no modifica SEL / MONTH / REGION ni llama a load(). Todo texto dinámico pasa por htmlSafe (o textContent).
+    const DM = { open: false, tid: null, month: '', page: 1, seq: 0, opener: null, det: null, cl: null };
+    const dmLabel = () => DM.month ? monthLabel(DM.month) : 'Todo el período';
+    const dmQs = extra => { const p = new URLSearchParams(); if (DM.month) p.set('month', DM.month); Object.entries(extra || {}).forEach(([k, v]) => p.set(k, v)); const s = p.toString(); return s ? '?' + s : ''; };
+    const mwh = x => x == null ? '—' : nf(x / 1000, 1) + ' MWh';
+    const d10 = s => s == null ? '—' : htmlSafe(String(s).slice(0, 10));
+    const dsum = (rows, k) => rows.reduce((a, r) => a + (+r[k] || 0), 0);
+    const rsTag = s => `<span class="tag ${s === 'Leído' ? 'ok' : s === 'Estimado' ? 'media' : 'bad'}">${htmlSafe(s)}</span>`;
+    const dmErr = e => `<div class="date-error">⚠️ No se pudo cargar el detalle: ${htmlSafe(e.message)}</div>`;
+    async function dmFetch(url) {
+      const r = await fetch(url); let data = null;
+      try { data = await r.json(); } catch (e) { /* cuerpo no JSON */ }
+      if (!r.ok) throw new Error((data && (data.error || (Array.isArray(data.detail) ? data.detail.map(d => d.msg).join('; ') : data.detail))) || ('HTTP ' + r.status));
+      return data;
+    }
+    function dmSet(title, sub, html) { $('dmTitle').textContent = title; $('dmSub').textContent = sub; $('dmBody').innerHTML = html; $('dm').scrollTop = 0; }
+
+    async function openTransformer(id, opener) {
+      DM.open = true; DM.tid = id; DM.month = MONTH; DM.page = 1; DM.opener = opener || null; DM.det = DM.cl = null;
+      const seq = ++DM.seq;
+      $('dm').classList.add('on'); $('dm').setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
+      dmSet('Transformador', dmLabel(), '<p class="muted">Cargando detalle…</p>');
+      $('dmClose').focus();
+      try {
+        const [det, cl] = await Promise.all([dmFetch(`/api/transformer/${id}${dmQs()}`), dmFetch(`/api/transformer/${id}/clients${dmQs({ page: 1 })}`)]);
+        if (seq !== DM.seq) return;            // modal cerrado o reabierto con otro transformador: se descarta
+        DM.det = det; DM.cl = cl; renderTr();
+      } catch (e) { if (seq === DM.seq) dmSet('Transformador', dmLabel(), dmErr(e)); }
+    }
+    async function dmPage(p) {
+      const seq = ++DM.seq; DM.page = p;
+      try { const cl = await dmFetch(`/api/transformer/${DM.tid}/clients${dmQs({ page: p })}`); if (seq !== DM.seq) return; DM.cl = cl; renderTr(); }
+      catch (e) { if (seq === DM.seq) $('dmBody').insertAdjacentHTML('afterbegin', dmErr(e)); }
+    }
+    function renderTr() {
+      const d = DM.det, t = d.transformer, L = d.loss || {}, Ca = d.cartera || {}, R = d.rel || {}, cl = DM.cl, Tt = cl.totals || {};
+      const sub = `Zona ${t.zone_name ?? t.zone_id} · Circuito ${t.circuit_name ?? t.circuit_id}${t.region ? ' · Región ' + t.region : ''}${t.capacity_kva ? ' · ' + nf(t.capacity_kva) + ' kVA' : ''} · ${dmLabel()}`;
+      const kp = [
+        kpi({ l: 'Energía inyectada', v: mwh(L.injected_kwh), s: L.billed_kwh != null ? 'Facturada ' + mwh(L.billed_kwh) : 'Sin datos de pérdida en el período', c: C.bl }),
+        kpi({ l: 'Pérdida', v: pct(L.perdida_pct), s: L.perdida_kwh != null ? mwh(L.perdida_kwh) + ' perdidos' : '', c: C.or }),
+        kpi({ l: 'Pérdida evitable', v: usd(L.evitable_usd), s: 'USD recuperables', c: C.tq }),
+        kpi({ l: 'Morosidad >60 d', v: pct(Ca.pct_m60), s: Ca.corte ? `${usd(Ca.saldo_mayor_60)} de ${usd(Ca.saldo_total)} · corte ${d10(Ca.corte)}` : 'Sin corte de cartera en el período', c: C.or }),
+        kpi({ l: 'SAIDI', v: R.saidi == null ? '—' : nf(R.saidi, 1) + ' min', s: `${nf(R.eventos)} eventos · ${nf(R.clientes_servidos)} clientes servidos`, c: C.bl }),
+        kpi({ l: 'SAIFI', v: R.saifi == null ? '—' : nf(R.saifi, 2), s: R.mttr == null ? '' : 'MTTR ' + nf(R.mttr) + ' min', c: C.bl })].join('');
+      const n = Tt.n_clientes || 0, pages = Math.max(1, Math.ceil(n / (cl.size || 20)));
+      const table = cl.rows.length ? `<div class="scroll" style="max-height:none">${tbl([
+        ['Cliente', r => `<b>${htmlSafe(r.client_code)}</b>`], ['Tarifa', r => htmlSafe(r.tarifa)], ['Tipo', r => htmlSafe(r.client_type)],
+        ['Consumo kWh', r => nf(r.kwh, 1), 'r'], ['Lect. est. / falt.', r => `${nf(r.est)} / ${nf(r.falt)}`, 'r'],
+        ['Saldo >60 d', r => usd(r.m60), 'r'], ['Saldo total', r => usd(r.saldo), 'r']], cl.rows,
+        r => `data-cl="${+r.client_id}" tabindex="0" title="Clic para ver lecturas, facturación y pagos"`)}</div>` : '<p class="muted">Sin clientes para este transformador.</p>';
+      const dk = L.billed_kwh != null && Tt.kwh_total != null ? Tt.kwh_total - L.billed_kwh : null;
+      const d60 = Ca.corte && Tt.m60_total != null ? Tt.m60_total - (Ca.saldo_mayor_60 || 0) : null;
+      const chk = n ? `Los totales cubren los ${nf(n)} clientes del transformador, no solo esta página: consumo ${nf(Tt.kwh_total, 1)} kWh` +
+        (dk == null ? '' : Math.abs(dk) < 0.5 ? ' (coincide con la energía facturada del transformador)' : ` (difiere ${nf(dk, 1)} kWh de la energía facturada del transformador)`) +
+        ` · saldo >60 d ${usd(Tt.m60_total)}` + (d60 == null ? '' : Math.abs(d60) < 0.5 ? ' (coincide con la cartera >60 d del transformador).' : ` (difiere ${usd(d60)} de la cartera >60 d del transformador).`) : '';
+      dmSet(t.transformer_name || 'Transformador', sub, `<div class="kpis">${kp}</div>
+        <h4>Clientes del transformador · ordenados por saldo >60 días</h4>${table}
+        <div class="dm-pager"><button type="button" data-pg="${cl.page - 1}" ${cl.page <= 1 ? 'disabled' : ''}>← Anterior</button>
+          <span>Página ${cl.page} de ${pages} · ${nf(n)} clientes · ${cl.size} por página</span>
+          <button type="button" data-pg="${cl.page + 1}" ${cl.page >= pages ? 'disabled' : ''}>Siguiente →</button></div>
+        <p class="dm-note">${htmlSafe(chk)}</p>
+        <p class="dm-note">Consumo y lecturas corresponden a ${htmlSafe(dmLabel())}; el saldo se toma del último corte de cartera de ese período.</p>`);
+    }
+    async function openClient(cid) {
+      const seq = ++DM.seq;
+      dmSet('Cliente', dmLabel(), '<p class="muted">Cargando cliente…</p>');
+      try { const d = await dmFetch(`/api/client/${cid}${dmQs()}`); if (seq !== DM.seq) return; renderClient(d); }
+      catch (e) { if (seq === DM.seq) dmSet('Cliente', dmLabel(), `<button class="map-action ghost" style="margin:0 0 10px" type="button" data-back>← Volver al transformador</button>${dmErr(e)}`); }
+    }
+    function renderClient(d) {
+      const c = d.client, lec = d.lecturas, fac = d.facturas, pag = d.pagos, tr = d.truncated || {}, lim = d.limits || {};
+      const sub = `${c.tarifa} · ${c.client_type} · Zona ${c.zone_name ?? c.zone_id} · Circuito ${c.circuit_name ?? c.circuit_id} · Transformador ${c.transformer_name ?? c.transformer_id} · ${dmLabel()}`;
+      const part = k => tr[k] ? ` (parcial: se muestran las ${lim[k]} más recientes)` : '';
+      const kp = [
+        kpi({ l: 'Consumo', v: nf(dsum(lec, 'consumption_kwh'), 1) + ' kWh', s: `${nf(lec.length)} lecturas${part('lecturas')}`, c: C.bl }),
+        kpi({ l: 'Facturado', v: usd(dsum(fac, 'amount_due')), s: `${nf(fac.length)} facturas · ${nf(dsum(fac, 'billed_kwh'), 1)} kWh${part('facturas')}`, c: C.bl }),
+        kpi({ l: 'Pagado de esas facturas', v: usd(dsum(fac, 'pagado')), s: 'Acumulado de pagos aplicados', c: C.tq }),
+        kpi({ l: 'Saldo de esas facturas', v: usd(dsum(fac, 'saldo')), s: 'Facturado − pagado (sin importar el corte)', c: C.or }),
+        kpi({ l: 'Pagos recibidos', v: usd(dsum(pag, 'payment_amount')), s: `${nf(pag.length)} pagos${part('pagos')}`, c: C.tq })].join('');
+      const none = t => `<p class="muted">${t}</p>`;
+      const tLec = lec.length ? tbl([['Fecha', r => d10(r.reading_date)], ['Medidor', r => r.meter_serial ? htmlSafe(r.meter_serial) : '—'], ['Estado', r => rsTag(r.reading_status)],
+        ['Registrado kWh', r => nf(r.registered_kwh, 1), 'r'], ['Estimado kWh', r => nf(r.estimated_kwh, 1), 'r'], ['Consumo kWh', r => nf(r.consumption_kwh, 1), 'r'],
+        ['AMI válida', r => r.ami_valid ? 'Sí' : 'No']], lec) : none('Sin lecturas en el período.');
+      const tFac = fac.length ? tbl([['Factura', r => '#' + htmlSafe(r.invoice_id)], ['Emisión', r => d10(r.invoice_date)], ['Vence', r => d10(r.due_date)],
+        ['kWh', r => nf(r.billed_kwh, 1), 'r'], ['Estimada', r => r.is_estimated ? 'Sí' : 'No'], ['Monto', r => usd(r.amount_due), 'r'], ['Pagado', r => usd(r.pagado), 'r'], ['Saldo', r => usd(r.saldo), 'r']], fac) : none('Sin facturas en el período.');
+      const tPag = pag.length ? tbl([['Fecha de pago', r => d10(r.payment_date) + (r.is_date_imputed ? ' <span class="muted">(imputada)</span>' : '')], ['Factura', r => '#' + htmlSafe(r.invoice_id)],
+        ['Monto', r => usd(r.payment_amount), 'r'], ['Método', r => htmlSafe(r.payment_method)]], pag) : none('Sin pagos recibidos en el período.');
+      dmSet('Cliente ' + (c.client_code || c.client_id), sub, `<button class="map-action ghost" style="margin:0 0 12px" type="button" data-back>← Volver al transformador</button>
+        <div class="kpis">${kp}</div>
+        <h4>Lecturas del período${htmlSafe(part('lecturas'))}</h4><div class="scroll" style="max-height:260px">${tLec}</div>
+        <h4>Facturación${htmlSafe(part('facturas'))}</h4><div class="scroll" style="max-height:260px">${tFac}</div>
+        <h4>Pagos recibidos en el período${htmlSafe(part('pagos'))}</h4><div class="scroll" style="max-height:260px">${tPag}</div>
+        <p class="dm-note">Los pagos se listan por fecha de pago dentro del período; «Pagado» de cada factura es el acumulado aplicado a esa factura, aunque se haya pagado en otro mes.</p>`);
+    }
+    function closeDM() {
+      if (!DM.open) return;
+      DM.open = false; DM.seq++;                    // invalida cualquier petición en vuelo
+      $('dm').classList.remove('on'); $('dm').setAttribute('aria-hidden', 'true'); document.body.style.overflow = '';
+      const o = DM.opener; DM.opener = null;
+      if (o && document.contains(o)) o.focus();
+    }
+    $('dmClose').onclick = closeDM;
+    $('dm').addEventListener('click', e => { if (e.target === $('dm') && e.clientX < $('dm').clientWidth) closeDM(); });      // clic en el fondo (no en la barra de desplazamiento)
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && DM.open) { e.preventDefault(); closeDM(); } });
+    $('dmBody').addEventListener('click', e => {
+      const pg = e.target.closest('button[data-pg]'); if (pg) { if (!pg.disabled) dmPage(+pg.dataset.pg); return; }
+      if (e.target.closest('button[data-back]')) { DM.seq++; if (DM.det && DM.cl) renderTr(); return; }   // volver sin recargar nada
+      const row = e.target.closest('tr[data-cl]'); if (row) openClient(+row.dataset.cl);
+    });
+    $('dmBody').addEventListener('keydown', e => { if (e.key !== 'Enter') return; const row = e.target.closest('tr[data-cl]'); if (row) openClient(+row.dataset.cl); });
+
+    const resize = () => Object.values(charts).forEach(c => c.resize());
+    window.addEventListener('resize', resize);
+    $('nav').onclick = e => {
+      const b = e.target.closest('button'); if (!b) return;
+      document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+      document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === b.dataset.v));
+      window.scrollTo({ top: 0 }); setTimeout(resize, 30); setTimeout(()=>mapObj?.invalidateSize(),80);
+    };
+
+    (async () => {
+      ZONES = await (await fetch('/api/zones')).json(); ZONES.forEach(z => SEL.add(z.zone_id));
+      buildDimSelects();
+      fetchGeo();
+      buildMonthSelect(); // las opciones reales de meses llegan con las facetas de /api/filters
+      $('monthSel').addEventListener('change', () => { MONTH = $('monthSel').value; lastChanged='month'; clearTimeout(loadTimer); loadTimer=setTimeout(load,200); });
+      $('resetDates').onclick = () => { if (!MONTH) return; MONTH = ''; $('monthSel').value = ''; clearTimeout(loadTimer); load(); };
+      // Chips de zona: primer clic aísla la zona; luego suman/restan. Todo pasa por setZones() (igual que mapa, gráficos y tabla).
+      mkChips();
+      $('chips').onclick = e => {
+        const c = e.target.closest('.chip'); if (!c) return;
+        const id = +c.dataset.id;
+        if (SEL.size === visibleZoneIds().length) return setZones(new Set([id]));
+        const n = new Set(SEL); n.has(id) ? n.delete(id) : n.add(id); setZones(n);
+      };
+      // Filtros por dimensión: cada cambio recarga una sola vez (con retardo) y las respuestas obsoletas se descartan con loadSeq.
+      const scheduleLoad = (changed) => { lastChanged=changed; activeRequest?.abort(); optionsRequest?.abort(); ++loadSeq; clearTimeout(loadTimer); loadTimer = setTimeout(load, 200); };
+      $('regionSel').onchange = () => {
+        REGION = $('regionSel').value;
+        SEL = new Set(visibleZoneIds());           // al cambiar de región se seleccionan todas sus zonas
+        CIRC=''; syncCircuits(); mkChips(); renderMapStyle(); renderMapPanel(); scheduleLoad('region');
+      };
+      $('circuitSel').onchange = () => { CIRC = $('circuitSel').value; scheduleLoad('circuit'); };
+      $('tariffSel').onchange = () => { TARIFF = $('tariffSel').value; scheduleLoad('tariff'); };
+      $('typeSel').onchange = () => { CTYPE = $('typeSel').value; scheduleLoad('client_type'); };
+      $('clearAll').onclick = () => {              // limpia región, circuito, tarifa, tipo, zonas y mes
+        REGION = CIRC = TARIFF = CTYPE = ''; MONTH = ''; $('monthSel').value = '';
+        SEL = new Set(ZONES.map(z => z.zone_id));
+        buildDimSelects(); mkChips(); renderMapStyle(); renderMapPanel();
+        clearTimeout(loadTimer); load();
+      };
+      $('fall').onclick = () => setZones(new Set());   // quitar selección de zona = volver a todas
+      // Clic en una fila del Top 10 = abrir el detalle (modal). NO cambia zona, mes ni ningún filtro global y no recarga el dashboard.
+      $('t_top10').onclick = e => { const tr = e.target.closest('tr[data-tr]'); if (tr) openTransformer(+tr.dataset.tr, tr); };
+      $('t_top10').onkeydown = e => { if (e.key !== 'Enter') return; const tr = e.target.closest('tr[data-tr]'); if (tr) openTransformer(+tr.dataset.tr, tr); };
+      load();
+    })();
+  </script>
+  <script>
+    /* Indicador «Datos actualizados al» y botón «Actualizar resúmenes»: sondeo regular y actualización interactiva. */
+    (function () {
+      const el = document.getElementById('dataStatus'); if (!el) return;
+      const btn = $('btnRefresh');
+      const btnTxt = $('btnRefreshText');
+      let refreshPollTimer = null;
+      let isRefreshing = false;
+
+      function updateButtonState(state) {
+        if (state === 'en_curso') {
+          isRefreshing = true;
+          if (btn) {
+            btn.disabled = true;
+            btn.classList.add('spinning');
+          }
+          if (btnTxt) btnTxt.textContent = 'Actualizando…';
+          if (!refreshPollTimer) {
+            refreshPollTimer = setInterval(refreshStatus, 3000);
+          }
+        } else {
+          if (isRefreshing) {
+            isRefreshing = false;
+            if (typeof load === 'function') load();
+          }
+          if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('spinning');
+          }
+          if (btnTxt) btnTxt.textContent = 'Actualizar resúmenes';
+          if (refreshPollTimer) {
+            clearInterval(refreshPollTimer);
+            refreshPollTimer = null;
+          }
+        }
+      }
+
+      if (btn) {
+        btn.onclick = async () => {
+          if (btn.disabled) return;
+          updateButtonState('en_curso');
+          try {
+            const resp = await fetch('/api/refresh', { method: 'POST' });
+            if (!resp.ok && resp.status !== 202 && resp.status !== 409) {
+              const err = await resp.json().catch(() => ({}));
+              alert(err.mensaje || 'Error al iniciar la actualización.');
+              updateButtonState('error');
+            } else {
+              refreshStatus();
+            }
+          } catch (e) {
+            alert('Error de conexión con el servidor: ' + e.message);
+            updateButtonState('error');
+          }
+        };
+      }
+
+      const fmt = s => { const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s || ''); return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : null; };
+      const fmtD = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : '—'; };
+      function paint(d) {
+        updateButtonState(d.estado);
+        const when = fmt(d.actualizado_al);
+
+        // Actualizar panel de resúmenes en la barra temporal
+        const tsEl = $('refreshTimestamp');
+        if (tsEl) {
+          tsEl.textContent = when || 'Sin fecha';
+          tsEl.title = when ? `Última actualización exitosa: ${when}` : 'Sin fecha registrada';
+        }
+        const dotEl = $('refreshDot');
+        if (dotEl) {
+          dotEl.className = 'refresh-dot ' + (d.estado || 'sin_datos');
+          dotEl.title = d.estado_texto || '';
+        }
+
+        const u = d.ultima_ejecucion;
+        let origenTxt = '';
+        if (u && u.origen) {
+          if (u.origen === 'TaskScheduler') origenTxt = 'Tarea Windows';
+          else if (u.origen === 'WebDashboard') origenTxt = 'Web Dashboard';
+          else if (u.origen === 'manual') origenTxt = 'Manual SQL';
+          else origenTxt = u.origen;
+        }
+        if (u && u.estado === 'ERROR') {
+          origenTxt += origenTxt ? ' · Falló' : 'Falló';
+        }
+        const origEl = $('refreshOrigin');
+        if (origEl) {
+          origEl.textContent = origenTxt;
+          origEl.style.display = origenTxt ? 'inline-block' : 'none';
+          if (u && u.estado === 'ERROR') {
+            origEl.style.background = '#fee2e2';
+            origEl.style.color = '#991b1b';
+          } else {
+            origEl.style.background = '#e2e8f0';
+            origEl.style.color = 'var(--tx2)';
+          }
+        }
+        const durEl = $('refreshDuration');
+        if (durEl) {
+          durEl.textContent = d.duracion_seg != null ? `(${d.duracion_seg} s)` : '';
+        }
+
+        // Actualizar indicador en header y tooltip de SLA
+        el.className = 'dstat on ' + (d.estado || 'sin_datos');
+        el.replaceChildren();
+        const dot = document.createElement('i'), t = document.createElement('span'), b = document.createElement('b');
+        b.textContent = d.estado_texto || '';
+        t.append(when ? `Datos actualizados al ${when} · ` : '', b);
+        el.append(dot, t);
+        const L = [];
+        L.push(when ? `Resúmenes del dashboard actualizados: ${when}` + (d.duracion_seg != null ? ` (duración ${d.duracion_seg} s)` : '') : 'No hay registro de actualización de los resúmenes.');
+        if (d.periodo_hasta) L.push(`Los datos cubren hasta la fecha de corte ${fmtD(d.periodo_hasta)}.`);
+        if (u) L.push(`Última ejecución registrada: ${u.estado}${u.origen ? ' (' + u.origen + ')' : ''}${fmt(u.iniciado_en) ? ' · ' + fmt(u.iniciado_en) : ''}.` + (u.estado === 'ERROR' ? ' Detalle en energrid.aud_refresco_log.' : ''));
+        else if (!d.registro_ejecuciones) L.push('Registro de ejecuciones no instalado (sql/05_resumenes_sla.sql).');
+        if (d.umbral_horas != null) L.push(`Umbral de «atrasado»: ${d.umbral_horas} h` + (d.umbral_aprobado ? '.' : ' (propuesta técnica pendiente de aprobación).'));
+        if (d.fuentes && d.fuentes.length) {
+          L.push('', 'Fuente · dato más reciente · frecuencia · hora límite · máx. h · responsable');
+          d.fuentes.forEach(f => L.push(`• ${f.descripcion}: ${fmtD(f.fecha_dato_max)} · ${f.frecuencia} · ${f.hora_limite || '—'} · ${f.max_horas ?? '—'} h · ${f.responsable || 'Por asignar'}${f.aprobado ? '' : ' (propuesta)'}`));
+        }
+        if (!d.sla_aprobado) L.push('', 'Los valores de SLA son una propuesta técnica pendiente de aprobación; no constituyen un SLA contractual vigente.');
+        el.title = L.join('\n');
+      }
+      async function refreshStatus() {
+        try { const r = await fetch('/api/data-status'); if (!r.ok) throw new Error(r.status); paint(await r.json()); }
+        catch (e) { /* el indicador es opcional: si falla se oculta y el dashboard sigue igual */ el.className = 'dstat'; el.title = ''; }
+      }
+      refreshStatus(); setInterval(refreshStatus, 300000);
+    })();
+  </script>
+</body>
+
+</html>

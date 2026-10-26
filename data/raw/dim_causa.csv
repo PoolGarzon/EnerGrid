@@ -1,0 +1,7 @@
+cause_id,cause_name,planned
+1,Clima,False
+2,Falla de equipo,False
+3,Mantenimiento,True
+4,Vegetación,False
+5,Accidente externo,False
+6,Sobrecarga,False
